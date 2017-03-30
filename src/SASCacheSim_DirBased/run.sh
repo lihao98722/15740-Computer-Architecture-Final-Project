@@ -1,3 +1,5 @@
+cd ../App && make clean && make
+cd ../SASCacheSim_DirBased
 echo 'export PIN_ROOT=/afs/cs.cmu.edu/academic/class/15740-s17/public/pin-3.0'
 
 make clean
