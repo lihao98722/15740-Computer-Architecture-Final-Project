@@ -60,7 +60,7 @@ class COMPRESSOR
     INDEX Map(KEY key)
     {
         typename MAP::const_iterator it = _map.find(key);
-        
+
         if (it != _map.end())
         {
             // key found: return index
@@ -92,7 +92,7 @@ class COMPRESSOR_COUNTER : public COMPRESSOR<KEY, INDEX>
     typedef std::vector<COUNTER> VECTOR;
     //static const UINT32 defaultInitCounterSize = 1*1024;
     static const UINT32 defaultInitCounterSize = 16;
-    //static const UINT32 defaultInitCounterSize = 22000;    
+    //static const UINT32 defaultInitCounterSize = 22000;
 
     VECTOR _counters;
     std::string _counterName;
@@ -115,7 +115,7 @@ class COMPRESSOR_COUNTER : public COMPRESSOR<KEY, INDEX>
         for (typename COMPRESSOR<KEY,INDEX>::MAP::const_iterator it = this->_map.begin(); it != this->_map.end(); it++)
         {
             const COUNTER& counter = _counters[it->second];
-            
+
             if ( _threshold <= counter ) num_counters++;
         }
 
@@ -158,7 +158,7 @@ class COMPRESSOR_COUNTER : public COMPRESSOR<KEY, INDEX>
         {
             //_counters.reserve(2 * _counters.capacity());
             // Gang-Ryung Uh
-            _counters.resize(2 * _counters.capacity());            
+            _counters.resize(2 * _counters.capacity());
         }
         return Idx;
     }
@@ -184,17 +184,17 @@ class COUNTER_ARRAY
 {
   private:
     NUMTYPE _counters[NUM_COUNTERS];
-    
+
   public:
     // constructors/destructors -- fix from Gang-Ryung Uh 8-15-2008
-    COUNTER_ARRAY() 
+    COUNTER_ARRAY()
     {
         for (UINT32 i = 0; i < NUM_COUNTERS; i++)
         {
             _counters[i] = 0;
         }
     }
-    
+
     // accessors
     std::string str() const
     {
@@ -230,7 +230,7 @@ class COUNTER_ARRAY
 
         return true;
     }
-    
+
 
     // modifiers
     const NUMTYPE & operator[] (UINT32 index) const { return _counters[index]; }
@@ -238,13 +238,13 @@ class COUNTER_ARRAY
 
     const NUMTYPE & at(UINT32 index) const
     {
-        assert(index < NUM_COUNTERS);
+        assert(index < this->NUM_COUNTERS);
         return _counters[index];
     }
 
     NUMTYPE & at(UINT32 index)
-    { 
-        assert(index < NUM_COUNTERS);
+    {
+        assert(index < this->NUM_COUNTERS);
         return _counters[index];
     }
 

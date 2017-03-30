@@ -1,17 +1,16 @@
 
 #include <sstream>
 
-
-/*! RMR (rodric@gmail.com) 
+/*! RMR (rodric@gmail.com)
  *   - temporary work around because decstr()
  *     casts 64 bit ints to 32 bit ones
  */
-static string mydecstr(UINT64 v, UINT32 w)
+static std::string mydecstr(UINT64 v, UINT32 w)
 {
-    ostringstream o;
+    std::ostringstream o;
     o.width(w);
     o << v;
-    string str(o.str());
+    std::string str(o.str());
     return str;
 }
 
@@ -55,4 +54,3 @@ static inline INT32 CeilLog2(UINT32 n)
 {
     return FloorLog2(n - 1) + 1;
 }
-
