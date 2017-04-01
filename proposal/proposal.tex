@@ -44,11 +44,11 @@ In this project, we propose an adaptive cache coherence protocol optimized for p
 
 \section{Goals}
 
-\textbf{100\% goal:} Implement proposed adaptive cache coherence protocols and producer-consumer sharing pattern detector. Evaluate the performance on producer-consumer applications. We expect to achieve a performance speed-up over the baseline.
+\textbf{100\% goal:} Implement proposed adaptive cache coherence protocols and producer-consumer sharing pattern detector. Evaluate and analyze the performance on producer-consumer applications. We expect to achieve a performance speed-up over the baseline.
 
-\textbf{75\% goal:} Implement cache simulators and testing tools (stack trace, logger, etc.) to evaluate baseline protocol on producer-consumer applications.
+\textbf{75\% goal:} Implement and use cache simulators and testing tools (stack trace, logger, etc.) to fully evaluate and analyze the performance of directory-based cache-invalidate protocol on typical multi-threaded producer-consumer applications.
 
-\textbf{125\% goal:} Evaluate the performance of the proposed approach on general applications and verify its sequence consistency at our best efforts.
+\textbf{125\% goal:} Equip the cache simulator with functionalities that can synchronize application threads so as to observe more accurate cache access events (without the effect of pintool).
 
 
 \section{Logistics}
@@ -82,9 +82,7 @@ By Tuesday, April 11th, we expect to have an integrated system consist of a high
 \small{
 [1] Cheng, Liqun, John B. Carter, and Donglai Dai. "An adaptive cache coherence protocol optimized for producer-consumer sharing." High Performance Computer Architecture, 2007. HPCA 2007. IEEE 13th International Symposium on. IEEE, 2007.
 
-[2] Cheng, Liqun, John B. Carter, and Donglai Dai. "An adaptive cache coherence protocol optimized for producer-consumer sharing." High Performance Computer Architecture, 2007. HPCA 2007. IEEE 13th International Symposium on. IEEE, 2007.
-
-[3] Danny. "The Disruptor - Lock-free Publishing." Codeaholics.org. http://blog.codeaholics.org/2011/the-disruptor-lock-free-publishing/, 28 June 2011. Web. 10 Mar. 2017.
+[2] Danny. "The Disruptor - Lock-free Publishing." Codeaholics.org. http://blog.codeaholics.org/2011/the-disruptor-lock-free-publishing/, 28 June 2011. Web. 10 Mar. 2017.
 }
 
 
