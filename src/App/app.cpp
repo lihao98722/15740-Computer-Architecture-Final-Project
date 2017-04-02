@@ -1,20 +1,21 @@
 
 #include <iostream>
 #include <thread>
-#include <mutex>
+#include <atomic>
 #include <vector>
+#include <cstdint>
 
-const int ROUND = 10000;
+#define DATA_T uint64_t
 
-std::mutex m;
-int data = -1;
+const DATA_T ROUND = 1e7;
+std::atomic<DATA_T> data{0};
+
 
 void produce()
 {
     // std::cout << "produce" << std::endl;
-    for (int i = 0; i < ROUND; ++i)
+    for (DATA_T i = 0; i <= ROUND; ++i)
     {
-        std::lock_guard<std::mutex> lock(m);
         data = i;
     }
 }
@@ -23,10 +24,9 @@ void produce()
 void consume()
 {
     // std::cout << "consume" << std::endl;
-    volatile int reader = -1;
+    volatile DATA_T reader = -1;
     for (int i = 0; i < ROUND; ++i)
     {
-        std::lock_guard<std::mutex> lock(m);
         reader = data;
     }
 }
