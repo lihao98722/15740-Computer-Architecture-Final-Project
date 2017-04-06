@@ -1,4 +1,8 @@
-## 15740-Computer-Architecture-Final-Project
+## Adaptive Write-Update and Write-Invalidate Cache Coherence Protocols for Producer-Consumer Sharing
+
+This is a final research project in the class of Computer Architecture (15740), Spring 2017 in the School of Computer Science at Carnegie Mellon University. 
+
+Authors: Bangjie Liu, Hao Li
 
 ---
 ### Placeholder for Cache Simulator
