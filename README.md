@@ -5,15 +5,16 @@ This is a final research project in the class of Computer Architecture ([15-740]
 Authors: Bangjie Liu, Hao Li
 
 ---
-### Placeholder for Cache Simulator
+### Cache Simulator
 
-Put info about cache simulator here!
+In this project, we import a third-party cache simulator[1] and develop our adaptive cache coherence protocol and pattern detector based on that. It is a Pin-based[2] cache simulation tool that is able to detect cache instructions, memory loads/stores and simulate different cache coherence protocols(Valid/Invalid, MSI, MESI). It supports both bus-based and directory-based write strategies and provides configurable cache structure(L1, L2, L3). By analyzing cache/memory access traces, we can calculate cache hit/miss for load/store and estimate cost by CPU cycles across different cache structures with different coherence protocols and write strategies.
 
+---
 #### How to run
 
 ``` cd src/SASCacheSim_DirBased ```
 
-``` chmod +x run.sh && ./run.sh ```
+``` sudo chmod +x run.sh && ./run.sh ```
 
 
 ---
@@ -29,4 +30,5 @@ In this project, we use a [producer-consumer application](https://github.com/lih
 
 ### Reference
 
- This project uses an online cache simulator developed by Boise State University. (Dynamic Cache Simulator for Shared Address Space (SAS) Multiprocessor Architectures http://cs.boisestate.edu/~uh/CachePintool.htm)
+[1] Dynamic Cache Simulator for Shared Address Space (SAS) Multiprocessor Architectures, Boise State University http://cs.boisestate.edu/~uh/CachePintool.htm)
+[2] Pin: https://software.intel.com/en-us/articles/pin-a-dynamic-binary-instrumentation-tool
