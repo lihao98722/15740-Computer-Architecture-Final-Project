@@ -32,4 +32,5 @@ In this project, we use a [producer-consumer application](https://github.com/lih
 ### Reference
 
 [1] Dynamic Cache Simulator for Shared Address Space (SAS) Multiprocessor Architectures, Boise State University http://cs.boisestate.edu/~uh/CachePintool.htm)
+
 [2] Pin: https://software.intel.com/en-us/articles/pin-a-dynamic-binary-instrumentation-tool
