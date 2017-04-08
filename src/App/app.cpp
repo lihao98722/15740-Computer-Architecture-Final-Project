@@ -4,43 +4,82 @@
 #include <atomic>
 #include <vector>
 #include <cstdint>
+#include <mutex>
+
+// #define DEBUG
+#ifdef DEBUG
+
+std::mutex iomutex;
+
+#endif
 
 #define DATA_T uint64_t
-
 const DATA_T ROUND = 1e5;
-std::atomic<DATA_T> data{0};
-
+std::atomic<DATA_T> data(0);
 
 void produce()
 {
-    // std::cout << "produce" << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     for (DATA_T i = 0; i <= ROUND; ++i)
     {
         data = i;
     }
+
+    #ifdef DEBUG
+
+    std::lock_guard<std::mutex> iolock(iomutex);
+    std::cout << "produce thread on CPU: " << sched_getcpu() << std::endl;
+
+    #endif
 }
 
 
 void consume()
 {
-    // std::cout << "consume" << std::endl;
-    volatile DATA_T reader = -1;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    volatile DATA_T reader = 1;
     for (int i = 0; i < ROUND; ++i)
     {
         reader = data;
     }
+
+    #ifdef DEBUG
+
+    std::lock_guard<std::mutex> iolock(iomutex);
+    std::cout << "consume thread on CPU: " << sched_getcpu() << std::endl;
+
+    #endif
 }
 
+void pin(int i, std::thread &thread)
+{
+    cpu_set_t cpu_mask;
+    CPU_ZERO(&cpu_mask);
+    CPU_SET(i, &cpu_mask);
+
+    pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpu_mask);
+}
 
 int main()
 {
-    int nthreads = std::thread::hardware_concurrency();
+    int nthreads = static_cast<int>(std::thread::hardware_concurrency() / 2);
 
-    std::vector<std::thread> ths;
-    ths.push_back(std::thread{produce});
+    std::vector<std::thread> ths(nthreads);
+
+    #ifdef DEBUG
+
+    std::cout << "Launching " << nthreads << " threads" << std::endl;
+
+    #endif
+
+
+    ths[0] = std::thread{produce};
+    pin(0, ths[0]);
+
     for (int i = 1; i < nthreads; ++i)
     {
-        ths.push_back(std::thread{consume});
+        ths[i] = std::thread{consume};
+        pin(i, ths[i]);
     }
 
     for (auto & th: ths)
