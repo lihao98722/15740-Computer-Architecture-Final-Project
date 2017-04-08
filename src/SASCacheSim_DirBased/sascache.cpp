@@ -96,19 +96,13 @@ cache_config_string(CACHE_CONFIG cache)
         "NONE"
     };
 
-    std::string interconnect_string[] = {
-        "BUS",
-        "DIRECTORY",
-        "NONE"
-    };
-
     std::string out;
     out += "      number of set: " + decstr(cache.num_sets, 1)        + "\n" +
            "      associativity: " + decstr(cache.set_size, 1)        + "\n" +
            "          line size: " + decstr(cache.line_size, 1)       + "\n" +
            "     write_strategy: " + write_string[cache.write]        + "\n" +
            "          coherence: " + coherence_string[cache.coherence]    + "\n" +
-           "       interconnect: " + interconnect_string[cache.interconnect] + "\n";
+           "       interconnect: " + "Directory" + "\n";
 
     return out;
 }
@@ -160,10 +154,9 @@ init_configuration()
 
 
     /* L1 cache config */
-    if (fscanf(config, "L1: %i: %i: %i: %i: %i: %i\n",
+    if (fscanf(config, "L1: %i: %i: %i: %i: %i\n",
                &l1_config.num_sets, &l1_config.set_size, &l1_config.line_size,
-               &l1_config.write, &l1_config.coherence,
-               &l1_config.interconnect) != 6)
+               &l1_config.write, &l1_config.coherence) != 5)
     {
         perror("fscanf: cannot access config param for L1 cache");
         exit(-1);
