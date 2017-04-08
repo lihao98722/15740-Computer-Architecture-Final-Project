@@ -7,7 +7,7 @@
 
 #define DATA_T uint64_t
 
-const DATA_T ROUND = 1e7;
+const DATA_T ROUND = 1e5;
 std::atomic<DATA_T> data{0};
 
 
