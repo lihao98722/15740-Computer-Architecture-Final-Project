@@ -45,16 +45,16 @@ typedef enum
 } DIR_ACTION;
 
 
-typedef enum 
+typedef enum
 {
     PROTOCOL_VI,
     PROTOCOL_MSI,
     PROTOCOL_MESI,
     PROTOCOL_DRAGON,
-    NONE        
+    NONE
 } COHERENCE_PROTOCOL;
 
-typedef enum 
+typedef enum
 {
     WRITE_THROUGH_NO_ALLOCATE = 0,
     WRITE_THROUGH_ALLOCATE,
@@ -63,29 +63,23 @@ typedef enum
     WRITE_NUM
 } WRITE_STRATEGY;
 
-typedef enum 
-{
-    BUS,
-    DIRECTORY,
-    INTERCONNECT_NUM
-} INTERCONNECT_TYPE;
 
-typedef struct 
+typedef struct
 {
     INT32 num_sets;
     INT32 set_size;
     INT32 line_size;
     INT32 write;
     INT32 coherence;
-    INT32 interconnect;        
+    INT32 interconnect;
 } CACHE_CONFIG;
 
-typedef struct 
+typedef struct
 {
     INT32  simulate_inst_cache;
     INT32  track_insts;
     INT32  track_loads;
-    INT32  track_stores;        
+    INT32  track_stores;
     INT32  threshold_hit;
     INT32  threshold_miss;
     INT32  total_processors;
@@ -113,4 +107,4 @@ extern VOID SMPMain(int reason);
 }
 #endif
 
-#endif // _CALLBACKS__H_ 
+#endif // _CALLBACKS__H_

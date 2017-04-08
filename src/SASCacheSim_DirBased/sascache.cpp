@@ -146,10 +146,6 @@ init_configuration()
           1: Modified-Shared-Invalid
           2: Modified-Exclusive-Shared-Invalid
           3: Dragon
-
-       Interconnect:
-          0: BUS
-          1: DIRECTORY
     *********************************************/
 
 
