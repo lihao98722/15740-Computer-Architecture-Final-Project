@@ -15,7 +15,7 @@ std::mutex iomutex;
 
 #define DATA_T uint64_t
 const DATA_T ROUND = 1e5;
-const SYNC = 1000;
+const int SYNC = 1000;
 std::atomic<DATA_T> data(0);
 
 void produce()
@@ -34,7 +34,6 @@ void produce()
     #endif
 }
 
-
 void consume()
 {
     std::this_thread::sleep_for(std::chrono::milliseconds(SYNC));
@@ -52,13 +51,13 @@ void consume()
     #endif
 }
 
-void pin(int i, std::thread &thread)
+void pin(int i, std::thread &th)
 {
     cpu_set_t cpu_mask;
     CPU_ZERO(&cpu_mask);
     CPU_SET(i, &cpu_mask);
 
-    pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpu_mask);
+    pthread_setaffinity_np(th.native_handle(), sizeof(cpu_set_t), &cpu_mask);
 }
 
 int main()
