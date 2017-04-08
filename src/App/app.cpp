@@ -15,11 +15,12 @@ std::mutex iomutex;
 
 #define DATA_T uint64_t
 const DATA_T ROUND = 1e5;
+const SYNC = 1000;
 std::atomic<DATA_T> data(0);
 
 void produce()
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(SYNC));
     for (DATA_T i = 0; i <= ROUND; ++i)
     {
         data = i;
@@ -36,7 +37,7 @@ void produce()
 
 void consume()
 {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(SYNC));
     volatile DATA_T reader = 1;
     for (int i = 0; i < ROUND; ++i)
     {
@@ -63,7 +64,6 @@ void pin(int i, std::thread &thread)
 int main()
 {
     int nthreads = static_cast<int>(std::thread::hardware_concurrency() / 2);
-
     std::vector<std::thread> ths(nthreads);
 
     #ifdef DEBUG
@@ -71,7 +71,6 @@ int main()
     std::cout << "Launching " << nthreads << " threads" << std::endl;
 
     #endif
-
 
     ths[0] = std::thread{produce};
     pin(0, ths[0]);
