@@ -23,7 +23,7 @@ typedef UINT64 CACHE_STATS; // type of cache hit/miss counters
 #include <fstream>
 
 /* ===================================================================== */
-/*! RMR (rodric@gmail.com) 
+/*! RMR (rodric@gmail.com)
  *   - temporary work around because decstr()
  *     casts 64 bit ints to 32 bit ones
  */
@@ -92,7 +92,7 @@ namespace CACHE_STATES
    typedef enum
    {
      INVALID,
-     SHARED,     
+     SHARED,
      EXCLUSIVE,
      MODIFIED,
      VALID
@@ -145,15 +145,15 @@ class TAG_MEMORY
     INT32  *_lru;
     CACHE_STATES::CACHE_STATE *_valid;
     INT32 _tagsLastIndex;
-    
+
   public:
     TAG_MEMORY(UINT32 associativity = MAX_ASSOCIATIVITY)
         : _tagsLastIndex(associativity - 1)
     {
         _tags = new CACHE_TAG[associativity];
-        _lru = new INT32[associativity];        
+        _lru = new INT32[associativity];
         _valid = new CACHE_STATES::CACHE_STATE[associativity];
-        
+
         for (INT32 index = _tagsLastIndex; index >= 0; index--)
         {
             _tags[index] = CACHE_TAG(0);
@@ -181,7 +181,7 @@ class TAG_MEMORY
     {
         _tagsLastIndex = associativity - 1;
     }
-    
+
     /* ===================================================================== */
     inline INT32
     GetAssociativity(UINT32 associativity) {
@@ -210,15 +210,15 @@ class TAG_MEMORY
         INT32 maxlru = 0;
         int pick = 0;
 
-        for (INT32 i = 0; i < _tagsLastIndex; i++) 
+        for (INT32 i = 0; i < _tagsLastIndex; i++)
         {
-            if (_valid[i] == CACHE_STATES::INVALID) 
+            if (_valid[i] == CACHE_STATES::INVALID)
             {
                 pick = i;
                 break;
             }
-            
-            if (_lru[i] > maxlru) 
+
+            if (_lru[i] > maxlru)
             {
                 maxlru = _lru[i];
                 pick = i;
@@ -244,7 +244,7 @@ class CACHE_BASE
 {
   public:
     // types, constants
-    typedef enum 
+    typedef enum
     {
         ACCESS_TYPE_LOAD,
         ACCESS_TYPE_STORE,
@@ -296,7 +296,7 @@ class CACHE_BASE
     {
         return _fetch[hit];
     }
-    
+
   protected:
     UINT32 NumSets() const { return _setIndexMask + 1; }
 
@@ -428,7 +428,7 @@ CACHE_BASE::CACHE_BASE(std::string name, UINT32 cacheSize, UINT32 lineSize, UINT
     {
         _access[accessType][CACHE_HIT] = 0;
         _access[accessType][CACHE_MISS] = 0;
-        _access[accessType][COHERENCE_MISS] = 0;                
+        _access[accessType][COHERENCE_MISS] = 0;
     }
 
     _fetch[false] = 0; // Gang-Ryung Uh: for instruction cache
@@ -448,7 +448,7 @@ CACHE_BASE::StatsLong(string prefix, CACHE_TYPE cache_type) const
     const UINT32 numberWidth = 12;
 
     string out;
-    
+
     out += prefix + _name + "\n";
 
     if (cache_type != CACHE_TYPE_ICACHE) {
@@ -462,7 +462,7 @@ CACHE_BASE::StatsLong(string prefix, CACHE_TYPE cache_type) const
             out += prefix + ljstr(type + "-Hits:                ", headerWidth)
                    + mydecstr(Hits(accessType), numberWidth)  +
                    "  " +fltstr(100.0 * Hits(accessType) / Accesses(accessType), 2, 6) + "%\n";
-            
+
             out += prefix + ljstr(type + "-Misses:              ", headerWidth)
                    + mydecstr(Misses(accessType), numberWidth) +
                    "  " +fltstr(100.0 * Misses(accessType) / Accesses(accessType), 2, 6) + "%\n";
@@ -471,13 +471,13 @@ CACHE_BASE::StatsLong(string prefix, CACHE_TYPE cache_type) const
                    + mydecstr(CoherenceMisses(accessType), numberWidth) +
                    "  " +fltstr(100.0 * CoherenceMisses(accessType) / Accesses(accessType), 2, 6) + "%\n";
 
-            
+
             out += prefix + ljstr(type + "-Accesses:            ", headerWidth)
                    + mydecstr(Accesses(accessType), numberWidth) +
                    "  " +fltstr(100.0 * Accesses(accessType) / Accesses(accessType), 2, 6) + "%\n";
-        
+
             out += prefix + "\n";
-           
+
         }
 
         out += prefix + ljstr("Total-Hits:            ", headerWidth)
@@ -487,18 +487,18 @@ CACHE_BASE::StatsLong(string prefix, CACHE_TYPE cache_type) const
         out += prefix + ljstr("Total-Misses:          ", headerWidth)
                + mydecstr(Misses(), numberWidth) +
                "  " +fltstr(100.0 * Misses() / Accesses(), 2, 6) + "%\n";
-        
+
         out += prefix + ljstr("Total-Accesses:        ", headerWidth)
                + mydecstr(Accesses(), numberWidth) +
                "  " +fltstr(100.0 * Accesses() / Accesses(), 2, 6) + "%\n";
         out += "\n";
-        
+
         out += prefix + ljstr("Estimated Cost:        ", headerWidth)
                + mydecstr(Cost(), numberWidth) + " Cycles\n";
         out += "\n";
 
     }
-    else 
+    else
     {
         // Instruction cache
 
@@ -509,12 +509,12 @@ CACHE_BASE::StatsLong(string prefix, CACHE_TYPE cache_type) const
         out += prefix + ljstr("Total-Misses:                   ", headerWidth)
                + mydecstr(IMisses(), numberWidth) +
                "  " +fltstr(100.0 * IMisses() / IAccesses(), 2, 6) + "%\n";
-        
+
         out += prefix + ljstr("Total-Coherence Misses:         ", headerWidth)
                + mydecstr(ICoherenceMisses(), numberWidth) +
                "  " +fltstr(100.0 * ICoherenceMisses() / IAccesses(), 2, 6) + "%\n";
 
-        
+
         out += prefix + ljstr("Total-Accesses:                ", headerWidth)
                + mydecstr(IAccesses(), numberWidth) +
                "  " +fltstr(100.0 * IAccesses() / IAccesses(), 2, 6) + "%\n";
@@ -525,7 +525,7 @@ CACHE_BASE::StatsLong(string prefix, CACHE_TYPE cache_type) const
                "  " +fltstr(100.0 * Accesses() / Accesses(), 2, 6) + " Cycles\n";
         out += "\n";
 
-        
+
     }
     return out;
 }
@@ -551,7 +551,7 @@ class CACHE : public CACHE_BASE
     BOOL valid;
     UINT32 mypid;
     CACHE **mymap;
-    
+
     COHERENCE<SET,CACHE> *coherence;
 
     // constructors/destructors
@@ -561,7 +561,7 @@ class CACHE : public CACHE_BASE
       : CACHE_BASE(name, cacheSize, lineSize, associativity)
     {
         _sets = new SET[NumSets()];
-        
+
         for (UINT32 i = 0; i < NumSets(); i++)
         {
             _sets[i].SetAssociativity(associativity);
@@ -573,7 +573,7 @@ class CACHE : public CACHE_BASE
             coherence = new UPDATE<SET,CACHE>(map, mypid);
         else if (coherence_write == WRITE_BACK_ALLOCATE && coherence_protocol == PROTOCOL_MSI)
             coherence = new DIR_MSI<SET,CACHE>(map, mypid);
-        else 
+        else
         {
             perror("CACHE_BASE: Invalid combination of cache write strategy and coherence protocol");
             exit(1);
@@ -582,16 +582,16 @@ class CACHE : public CACHE_BASE
         interconnection = interconnection_type;
     }
 
-    ~CACHE() 
+    ~CACHE()
     {
         delete[] _sets;
     }
-    
+
     // modifiers
     /// Cache access from addr to addr+size-1
     HIT_MISS_TYPES Load(ADDRINT addr, UINT32 size);
     HIT_MISS_TYPES Store(ADDRINT addr, UINT32 size);
-    
+
     /// Cache access at addr that does not span cache lines
     HIT_MISS_TYPES LoadSingleLine(ADDRINT addr);
     HIT_MISS_TYPES StoreSingleLine(ADDRINT addr);
@@ -603,7 +603,7 @@ class CACHE : public CACHE_BASE
     HIT_MISS_TYPES FetchSingleLine(ADDRINT addr);
 
     /// Return the Cache Line in set
-    SET *getSET(CACHE_TAG tag);    
+    SET *getSET(CACHE_TAG tag);
 };
 
 /* ===================================================================== */
@@ -642,7 +642,7 @@ CACHE<SET>::Store(ADDRINT addr, UINT32 size)
         addr = (addr & notLineMask) + lineSize; // start of next cache line
     }
     while (addr < highAddr);
-    
+
     _access[ACCESS_TYPE_STORE][allHit]++;
     _cost += cost;
     return allHit;
@@ -670,7 +670,7 @@ CACHE<SET>::Load(ADDRINT addr, UINT32 size)
         UINT32 setIndex;
         SplitAddress(addr, tag, setIndex);
         SET & set = _sets[setIndex];
-        HIT_MISS_TYPES localHit = coherence->processRead(&set, tag, &cost);        
+        HIT_MISS_TYPES localHit = coherence->processRead(&set, tag, &cost);
 	allHit = localHit;
         addr = (addr & notLineMask) + lineSize; // start of next cache line
     }
@@ -696,9 +696,9 @@ CACHE<SET>::LoadSingleLine(ADDRINT addr)
     UINT32 setIndex;
     SplitAddress(addr, tag, setIndex);
     SET & set = _sets[setIndex];
-    HIT_MISS_TYPES hit = coherence->processRead(&set, tag, &cost);    
+    HIT_MISS_TYPES hit = coherence->processRead(&set, tag, &cost);
     _access[ACCESS_TYPE_LOAD][hit]++;
-    _cost += cost;    
+    _cost += cost;
     return hit;
 }
 
@@ -718,7 +718,7 @@ CACHE<SET>::StoreSingleLine(ADDRINT addr)
     SET & set = _sets[setIndex];
     HIT_MISS_TYPES hit = coherence->processWrite(&set, tag, &cost);
     _access[ACCESS_TYPE_STORE][hit]++;
-    _cost += cost;    
+    _cost += cost;
     return hit;
 }
 
@@ -742,14 +742,14 @@ CACHE<SET>::Fetch(ADDRINT addr, UINT32 size)
         CACHE_TAG tag;
         UINT32 setIndex;
         SplitAddress(addr, tag, setIndex);
-        SET & set = _sets[setIndex];        
+        SET & set = _sets[setIndex];
 	HIT_MISS_TYPES localHit = coherence->processRead(&set, tag, &cost);
         allHit = localHit;
         addr = (addr & notLineMask) + lineSize; // start of next cache line
     }
     while (addr < highAddr);
     _fetch[allHit]++;
-    _cost += cost;    
+    _cost += cost;
     return allHit;
 }
 
@@ -769,7 +769,7 @@ CACHE<SET>::FetchSingleLine(ADDRINT addr)
     SET  &set = _sets[setIndex];
     HIT_MISS_TYPES hit = coherence->processRead(&set, tag, &cost);
     _fetch[hit]++;
-    _cost += cost;    
+    _cost += cost;
     return hit;
 }
 
