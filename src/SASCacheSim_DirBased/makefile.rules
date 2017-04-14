@@ -75,14 +75,11 @@ TOOL_CXXFLAGS += -Wno-error
 TOOL_LDFLAGS += -pthread
 TOOL_LDFLAGS += -std=c++11
 
-$(OBJDIR)cache$(OBJ_SUFFIX) : cache.cpp
-	$(CXX) $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $<
-
 $(OBJDIR)callbacks$(OBJ_SUFFIX) : callbacks.cpp
 	$(CXX) -Wno-deprecated $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $<
 
 $(OBJDIR)sascache$(OBJ_SUFFIX) : sascache.cpp
 	$(CXX) -Wno-deprecated $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $<
 
-$(OBJDIR)SASCache$(PINTOOL_SUFFIX) : $(OBJDIR)sascache$(OBJ_SUFFIX) $(OBJDIR)callbacks$(OBJ_SUFFIX) $(OBJDIR)cache$(OBJ_SUFFIX)
-	$(LINKER) $(TOOL_LDFLAGS) -shared $(OBJDIR)callbacks$(OBJ_SUFFIX) $(OBJDIR)cache$(OBJ_SUFFIX) $(OBJDIR)sascache$(OBJ_SUFFIX) -o $(OBJDIR)SASCache$(PINTOOL_SUFFIX) $(TOOL_LPATHS) $(TOOL_LIBS) -pthread
+$(OBJDIR)SASCache$(PINTOOL_SUFFIX) : $(OBJDIR)sascache$(OBJ_SUFFIX) $(OBJDIR)callbacks$(OBJ_SUFFIX)
+	$(LINKER) $(TOOL_LDFLAGS) -shared $(OBJDIR)callbacks$(OBJ_SUFFIX) $(OBJDIR)sascache$(OBJ_SUFFIX) -o $(OBJDIR)SASCache$(PINTOOL_SUFFIX) $(TOOL_LPATHS) $(TOOL_LIBS) -pthread

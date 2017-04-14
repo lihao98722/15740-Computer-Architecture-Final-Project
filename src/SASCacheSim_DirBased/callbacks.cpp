@@ -364,7 +364,7 @@ SMPMain(int reason)
 
       case THREAD_DETACH:
         tid = get_current_tid();
-        typedef std::pair<UINT32, UINT32> Ptr;
+        // typedef std::pair<UINT32, UINT32> Ptr;
         std::map<UINT32, UINT32>::iterator t_map_it = t_map.find(tid);
         if (t_map_it != t_map.end())
         {

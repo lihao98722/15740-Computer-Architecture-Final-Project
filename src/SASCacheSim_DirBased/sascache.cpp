@@ -203,9 +203,10 @@ Trace(TRACE trace, VOID *v)
         IMG_Type(SEC_Img(RTN_Sec(TRACE_Rtn(trace)))) == IMG_TYPE_SHAREDLIB)
         return;
 
-    RTN rtn = TRACE_Rtn(trace);
+    TRACE_Rtn(trace);
 
 #if defined (__DEBUG__)
+    RTN rtn = TRACE_Rtn(trace);
     if (RTN_Valid(rtn))
         if (CheckRtns.find(RTN_Name(rtn)) == CheckRtns.end())
         {
@@ -333,7 +334,7 @@ Trace(TRACE trace, VOID *v)
 
                 const UINT32 size = INS_MemoryWriteSize(ins);
 
-                const BOOL   single = (size <= 4);
+                const BOOL single = (size <= 4);
 
                 if( catch_all_config.track_stores )
                 {
@@ -389,14 +390,14 @@ Trace(TRACE trace, VOID *v)
 
 /* ===================================================================== */
 VOID
-thr_begin(UINT32 threadIndex, VOID *sp, int flags, VOID *v)
+ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, VOID *v)
 {
     SMPMain(THREAD_ATTACH);
 }
 
 /* ===================================================================== */
 VOID
-thr_end(UINT32 threadIndex, INT32 code, VOID *v)
+ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, VOID *v)
 {
     SMPMain(THREAD_DETACH);
 }
@@ -412,6 +413,7 @@ Fini(int code, VOID * v)
 int
 main(int argc, char *argv[])
 {
+
 #if defined (__DEBUG__)
     extern set<UINT32> DataAddrs;
 #endif
@@ -435,6 +437,7 @@ main(int argc, char *argv[])
     //DataAddrs.insert(0x0805A988);
     //DataAddrs.insert(0x0805A98C);
 #endif
+
     COUNTER_HIT_MISS threshold;
 
     threshold[COUNTER_HIT]  = catch_all_config.threshold_hit;
@@ -442,10 +445,15 @@ main(int argc, char *argv[])
 
     profileData.SetThreshold( threshold );
 
+    // Register Trace to be called when each image is loaded.
     TRACE_AddInstrumentFunction(Trace, 0);
+
+    // Register Fini to be called when the application exits
     PIN_AddFiniFunction(Fini, 0);
-    PIN_AddThreadBeginFunction(thr_begin, (VOID *) 0);
-    PIN_AddThreadEndFunction(thr_end, (VOID *) 0);
+
+    // Register thr_begin/thr_end to be called when a thread begins/ends
+    PIN_AddThreadStartFunction(ThreadStart, (VOID *) 0);
+    PIN_AddThreadFiniFunction(ThreadFini, (VOID *) 0);
 
     SMPMain(PROCESS_ATTACH);
 

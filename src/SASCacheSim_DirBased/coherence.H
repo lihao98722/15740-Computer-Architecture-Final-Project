@@ -20,6 +20,7 @@ class DIRECTORY_LINE
         writeBit = false;
     }
 };
+
 extern UINT32 active_threads;
 extern UINT32 pow2processors;
 extern int lock_id;
@@ -52,14 +53,15 @@ class COHERENCE
         print_range = 100000;
         limit = 0;
     }
+
     virtual HIT_MISS_TYPES processRead(SET *set, CACHE_TAG tag, INT32 *cost)
     {
         return CACHE_MISS;
     }
-virtual HIT_MISS_TYPES processWrite(SET *set, CACHE_TAG tag, INT32 *cost)
+
+    virtual HIT_MISS_TYPES processWrite(SET *set, CACHE_TAG tag, INT32 *cost)
     {
         return CACHE_MISS;
-
     }
 
     virtual VOID ReadMiss(CACHE_TAG tag, UINT32 localNode){}
@@ -70,10 +72,7 @@ virtual HIT_MISS_TYPES processWrite(SET *set, CACHE_TAG tag, INT32 *cost)
     virtual VOID DataValueReply(){}
     virtual VOID DataWriteBack(){}
     virtual DIRECTORY_LINE *getDirLine(CACHE_TAG tag){return NULL;}
-
-
 };
-
 
 
 
@@ -277,13 +276,15 @@ class UPDATE:public COHERENCE<SET,CACHE>
     }
 
 };
+
 /* ===================================================================== */
 /*!
  *  @brief Cache Coherence Protocol MSI
  */
 /* ===================================================================== */
+
 template <class SET, class CACHE>
-class DIR_MSI:public UPDATE<SET,CACHE>
+class DIR_MSI : public UPDATE<SET,CACHE>
 {
   private:
   public:
