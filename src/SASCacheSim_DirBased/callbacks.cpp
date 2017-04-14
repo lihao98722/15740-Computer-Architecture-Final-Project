@@ -333,6 +333,9 @@ Fini()
     out.close();
 }
 
+// Debug
+UINT32 temp_tid = 0;
+UINT32 temp_pid = 0;
 /* ===================================================================== */
 VOID
 SMPMain(int reason)
@@ -351,7 +354,7 @@ SMPMain(int reason)
         setProcessorsArray(pow2processors);
 
         // Adding Main Thread
-        (VOID)t_map.insert(std::pair<UINT32, UINT32>(get_current_tid(), get_next_pid()));
+        // (VOID)t_map.insert(std::pair<UINT32, UINT32>(get_current_tid(), get_next_pid()));
         break;
       case PROCESS_DETACH:
         unsetProcessorsArray(pow2processors);
@@ -359,7 +362,10 @@ SMPMain(int reason)
         break;
 
       case THREAD_ATTACH:
-        (VOID)t_map.insert(std::pair<UINT32, UINT32>(get_current_tid(), get_next_pid()));
+        temp_tid = get_current_tid();
+        temp_pid = get_next_pid();
+        std::cout << "tid " << temp_tid << " -> " << "pid " << temp_pid << std::endl;
+        (VOID)t_map.insert(std::pair<UINT32, UINT32>(temp_tid, temp_pid));
         break;
 
       case THREAD_DETACH:

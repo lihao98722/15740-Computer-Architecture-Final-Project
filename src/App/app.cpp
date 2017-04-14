@@ -14,9 +14,11 @@ std::mutex iomutex;
 #endif
 
 #define DATA_T uint64_t
-const DATA_T ROUND = 1e5;
+const DATA_T ROUND = 1e8;
 const int SYNC = 1000;
-std::atomic<DATA_T> data(0);
+
+std::mutex mx;
+DATA_T data = 0;
 
 static inline void local_irq_disable()
 {
@@ -29,6 +31,7 @@ void produce()
     std::this_thread::sleep_for(std::chrono::milliseconds(SYNC));
     for (DATA_T i = 0; i <= ROUND; ++i)
     {
+        std::lock_guard<std::mutex> lock{mx};
         data = i;
     }
 
@@ -45,6 +48,7 @@ void consume()
     volatile DATA_T reader = 1;
     for (int i = 0; i < ROUND; ++i)
     {
+        std::lock_guard<std::mutex> lock{mx};
         reader = data;
     }
 
@@ -65,14 +69,11 @@ inline void pin(int i, std::thread &th)
 
 int main()
 {
-    int nthreads = static_cast<int>(std::thread::hardware_concurrency() / 2 - 1);
+    // int nthreads = static_cast<int>(std::thread::hardware_concurrency() / 2 - 1);
+    int nthreads = 3;
     std::vector<std::thread> ths(nthreads);
 
-    std::cout << "shared addresss: " << std::hex << (&data) << std::endl;
-
-    #ifdef DEBUG
     std::cout << "Launching " << nthreads << " threads" << std::endl;
-    #endif
 
     ths[0] = std::thread{produce};
     pin(0, ths[0]);
