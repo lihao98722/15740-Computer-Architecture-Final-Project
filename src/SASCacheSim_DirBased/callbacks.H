@@ -88,18 +88,8 @@ typedef struct
 #if defined (__cplusplus)
 extern "C" {
 #endif
-extern VOID FetchSingle(UINT32 tid, ADDRINT addr, UINT32 instId);
-extern VOID FetchSingleFast(UINT32 tid, ADDRINT addr);
-extern VOID FetchMulti(UINT32 tid, ADDRINT addr, UINT32 size, UINT32 instId);
-extern VOID FetchMultiFast(UINT32 tid, ADDRINT addr, UINT32 size);
-extern VOID LoadSingle(UINT32 tid, ADDRINT addr, UINT32 instId);
-extern VOID LoadSingleFast(UINT32 tid, ADDRINT addr);
-extern VOID LoadMulti(UINT32 tid, ADDRINT addr, UINT32 size, UINT32 instId);
-extern VOID LoadMultiFast(UINT32 tid, ADDRINT addr, UINT32 size);
-extern VOID StoreSingle(UINT32 tid, ADDRINT addr, UINT32 instId);
-extern VOID StoreSingleFast(UINT32 tid, ADDRINT addr);
-extern VOID StoreMulti(UINT32 tid, ADDRINT addr, UINT32 size, UINT32 instId);
-extern VOID StoreMultiFast(UINT32 tid, ADDRINT addr, UINT32 size);
+extern VOID CacheLoad(UINT32 tid, ADDRINT addr, UINT32 instId);
+extern VOID CacheStore(UINT32 tid, ADDRINT addr, UINT32 instId);
 extern VOID Fini(int code, VOID * v);
 extern VOID SMPMain(int reason);
 

@@ -16,8 +16,8 @@
 
 /*!
  *  Class to map arbitrary sequences of sparse input values to
- *  a range of compact indices [0..N],
- *  such that the same input value always produces the same index.
+ *  a range of compact indices [0..N] such that the same input
+ *  value always produces the same index.
  */
 template <class KEY, class INDEX>
 class COMPRESSOR
@@ -31,20 +31,19 @@ class COMPRESSOR
     std::string _keyName;
 
   public:
-    // constructors/destructors
+    // constructor / destructor
     COMPRESSOR() { _nextIndex = 0; }
 
     // accessors
     std::string StringLong () const
     {
         std::string os;
-
         os += "COMPRESSOR BEGIN\n";
         os += "# " + _nextIndex.str() + " counters\n";
         os += "# " + _keyName +  ": index\n";
         for (typename MAP::const_iterator it = _map.begin(); it != _map.end(); it++)
         {
-            os += it->first.str() + ": " + decstr(it->second,12) + "\n";
+            os += it->first.str() + ": " + decstr(it->second, 12) + "\n";
         }
         os += "COMPRESSOR END\n";
 
@@ -99,11 +98,8 @@ class COMPRESSOR_COUNTER : public COMPRESSOR<KEY, INDEX>
     COUNTER _threshold;
 
   public:
-    // constructors/destructors
-    COMPRESSOR_COUNTER(UINT32 initCounterSize = defaultInitCounterSize)
-      : COMPRESSOR<KEY,INDEX>(),
-        _counters(initCounterSize)
-    {}
+    // constructor / destructor
+    COMPRESSOR_COUNTER(UINT32 initCounterSize = defaultInitCounterSize) : COMPRESSOR<KEY,INDEX>(), _counters(initCounterSize) {}
 
     // accessors
     std::string StringLong () const
@@ -115,7 +111,6 @@ class COMPRESSOR_COUNTER : public COMPRESSOR<KEY, INDEX>
         for (typename COMPRESSOR<KEY,INDEX>::MAP::const_iterator it = this->_map.begin(); it != this->_map.end(); it++)
         {
             const COUNTER& counter = _counters[it->second];
-
             if ( _threshold <= counter ) num_counters++;
         }
 
@@ -129,7 +124,7 @@ class COMPRESSOR_COUNTER : public COMPRESSOR<KEY, INDEX>
             const COUNTER& counter = _counters[it->second];
             if ( _threshold <=  counter)
             {
-                os += hexstr(it->first,8) + ": " + counter.str() + "\n";
+                os += hexstr(it->first, 8) + ": " + counter.str() + "\n";
             }
         }
         os += "DATA:END\n";
@@ -186,7 +181,7 @@ class COUNTER_ARRAY
     NUMTYPE _counters[NUM_COUNTERS];
 
   public:
-    // constructors/destructors -- fix from Gang-Ryung Uh 8-15-2008
+    // constructors / destructors -- fix from Gang-Ryung Uh 8-15-2008
     COUNTER_ARRAY()
     {
         for (UINT32 i = 0; i < NUM_COUNTERS; i++)

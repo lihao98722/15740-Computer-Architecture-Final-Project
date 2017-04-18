@@ -18,7 +18,6 @@
 #include <fstream>
 #include <set>
 
-
 typedef enum
 {
     COUNTER_MISS = 0,
@@ -37,20 +36,30 @@ extern COMPRESSOR_COUNTER<ADDRINT, UINT32, COUNTER_HIT_MISS> profileInst;
 /* ===================================================================== */
 /* Commandline Switches                                                  */
 /* ===================================================================== */
-KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE,    "pintool", "o",
-                            "cache.out", "specify dcache file name");
+KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE,
+                            "pintool",
+                            "o",
+                            "cache.out",
+                            "specify dcache file name");
 
-KNOB<string> KnobConfigFile(KNOB_MODE_WRITEONCE,    "pintool", "c",
-                            "cache.config", "specify configuration file name");
+KNOB<string> KnobConfigFile(KNOB_MODE_WRITEONCE,
+                            "pintool",
+                            "c",
+                            "cache.config",
+                            "specify configuration file name");
 
-KNOB<BOOL>   KnobNoSharedLibs(KNOB_MODE_WRITEONCE, "pintool", "no_shared_libs",
-                              "0", "do not instrument shared libraries");
+KNOB<BOOL> KnobNoSharedLibs(KNOB_MODE_WRITEONCE,
+                            "pintool",
+                            "no_shared_libs",
+                            "0",
+                            "do not instrument shared libraries");
 
-KNOB<UINT64> KnobInstructionCount(KNOB_MODE_WRITEONCE, "pintool",
+KNOB<UINT64> KnobInstructionCount(KNOB_MODE_WRITEONCE,
+                                  "pintool",
                                   "l","5000000000000",
                                   "specify the number of instructions to profile");
 
-#if defined (__DEBUG__)                           // <3>
+#if defined (__DEBUG__)
 LOCALVAR set<string,greater<string> > CheckRtns;
 #endif
 
@@ -62,8 +71,7 @@ CACHE_CONFIG l1_config, l2_config, l3_config;
 SIMULATION_CONFIG catch_all_config;
 
 /* ===================================================================== */
-INT32
-Usage()
+INT32 Usage()
 {
     cerr <<
         "This tool represents a cache simulator.\n"
@@ -77,8 +85,7 @@ Usage()
 }
 
 /* ===================================================================== */
-std::string
-cache_config_string(CACHE_CONFIG cache)
+std::string cache_config_string(CACHE_CONFIG cache)
 {
     std::string write_string[] = {
         "WRITE_THROUGH_NO_ALLOCATE",
@@ -108,8 +115,7 @@ cache_config_string(CACHE_CONFIG cache)
 }
 
 /* ===================================================================== */
-std::string
-config_string()
+std::string config_string()
 {
     std::string out;
 
@@ -135,20 +141,16 @@ config_string()
     return out;
 }
 
-
+/********************************************
+  Cache Coherence Protocol:
+      0: Valid-Invalid
+      1: Modified-Shared-Invalid
+      2: Modified-Exclusive-Shared-Invalid
+      3: Dragon
+*********************************************/
 /* ===================================================================== */
-LOCALFUN VOID
-init_configuration()
+LOCALFUN VOID init_configuration()
 {
-    /********************************************
-      Cache Coherence Protocol:
-          0: Valid-Invalid
-          1: Modified-Shared-Invalid
-          2: Modified-Exclusive-Shared-Invalid
-          3: Dragon
-    *********************************************/
-
-
     /* L1 cache config */
     if (fscanf(config, "L1: %i: %i: %i: %i: %i\n",
                &l1_config.num_sets, &l1_config.set_size, &l1_config.line_size,
@@ -157,6 +159,7 @@ init_configuration()
         perror("fscanf: cannot access config param for L1 cache");
         exit(-1);
     }
+
     ASSERTX((l1_config.num_sets <= MAX_SETS) && (l1_config.set_size <= MAX_ASSOCIATIVITY));
 
     /* Other call-all simulation params */
@@ -178,11 +181,9 @@ init_configuration()
 }
 
 /* ===================================================================== */
-LOCALFUN VOID
-Initialization()
+LOCALFUN VOID Initialization()
 {
-    if(((config = fopen( (KnobConfigFile.Value()).c_str(), "r" ))
-        == NULL)  )
+    if (((config = fopen( (KnobConfigFile.Value()).c_str(), "r" )) == NULL))
     {
         cerr << "Cannot open configuration file : " << KnobConfigFile.Value() << "\n";
         Usage();
@@ -194,224 +195,75 @@ Initialization()
     init_configuration();
 }
 
-/* ===================================================================== */
-LOCALFUN VOID
-Trace(TRACE trace, VOID *v)
+/* =====================================================================
+  Called for every read and write
+  Learned from https://software.intel.com/sites/landingpage/pintool/docs/76991/Pin/html/index.html#MAddressTrace
+ ===================================================================== */
+VOID Instruction(INS ins, VOID *v)
 {
-#if defined TARGET_LINUX
-    if (KnobNoSharedLibs.Value() &&
-        IMG_Type(SEC_Img(RTN_Sec(TRACE_Rtn(trace)))) == IMG_TYPE_SHAREDLIB)
-        return;
+    /* Instruments predicated call, called iff the instruction will actually be executed.
+       For IA-32 and Intel(R) 64 architectures, conditional moves and REP
+       prefixed instructions appear as predicated instructions in Pin. */
+    UINT32 memOperands = INS_MemoryOperandCount(ins);
 
-    TRACE_Rtn(trace);
+    // Iterate over each memory operand of the instruction.
+    for (UINT32 memOp = 0; memOp < memOperands; memOp++)
+    {
+        // map sparse INS addresses to dense IDs
+        const ADDRINT iaddr = INS_Address(ins);
+        const UINT32 instId = profileData.Map(iaddr);
 
-#if defined (__DEBUG__)
-    RTN rtn = TRACE_Rtn(trace);
-    if (RTN_Valid(rtn))
-        if (CheckRtns.find(RTN_Name(rtn)) == CheckRtns.end())
+        if (INS_MemoryOperandIsRead(ins, memOp))
         {
-            // cerr << "Ignored Routine Name : " << RTN_Name(rtn) << "\n";
-            return;
-        }
-#endif // __DEBUG__
-
-#endif // TARGET_LINUX
-
-#if defined (__DEBUG__)
-//    cerr << "Routine Name to be inspected : " << RTN_Name(rtn) << "\n";
-#endif // __DEBUG__
-
-    for (BBL bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
-
-        INS ins = BBL_InsHead(bbl);
-        for (; INS_Valid(ins); ins = INS_Next(ins)) {
-
-            const ADDRINT iaddr = INS_Address(ins);
-
-            if (catch_all_config.simulate_inst_cache)
+            if( catch_all_config.track_loads )
             {
-                const UINT32 instId = profileInst.Map(iaddr);
-                INT32 size = INS_Size(ins);
-
-                switch (size)
-                {
-                  case 1:
-                  case 2:
-                  case 3:
-                  case 4:
-                    if (catch_all_config.track_insts)
-                        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) FetchSingle,
-                                       IARG_THREAD_ID,
-                                       IARG_UINT32, iaddr,
-                                       IARG_UINT32, instId,
-                                       IARG_END);
-                    else
-                        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) FetchSingleFast,
-                                       IARG_THREAD_ID,
-                                       IARG_UINT32, iaddr,
-                                       IARG_UINT32, instId,
-                                       IARG_END);
-                    break;
-
-                  default:
-                    if (catch_all_config.track_insts)
-                        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) FetchMulti,
-                                       IARG_THREAD_ID,
-                                       IARG_UINT32, iaddr,
-                                       IARG_UINT32,
-                                       size,
-                                       IARG_UINT32, instId,
-                                       IARG_END);
-                    else
-                        INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR) FetchMultiFast,
-                                       IARG_THREAD_ID, IARG_UINT32, iaddr, IARG_UINT32,
-                                       size, IARG_UINT32, instId, IARG_END);
-                    break;
-                } // End Switch
+                INS_InsertPredicatedCall(
+                    ins, IPOINT_BEFORE, (AFUNPTR) CacheLoad,
+                    IARG_THREAD_ID,
+                    IARG_MEMORYREAD_EA,
+                    IARG_UINT32, instId,
+                    IARG_END);
             }
+        } // End memory read
 
-
-            if (INS_IsMemoryRead(ins))
+        /* Note that in some architectures a single memory operand can be
+           both read and written (for instance incl (%eax) on IA-32)
+           In that case we instrument it once for read and once for write.*/
+        if (INS_MemoryOperandIsWritten(ins, memOp))
+        {
+            if( catch_all_config.track_stores )
             {
-
-                // map sparse INS addresses to dense IDs
-                const ADDRINT iaddr = INS_Address(ins);
-                const UINT32 instId = profileData.Map(iaddr);
-
-                const UINT32 size = INS_MemoryReadSize(ins);
-                const BOOL   single = (size <= 4);
-                if( catch_all_config.track_loads )
-                {
-                    if( single )
-                    {
-                        INS_InsertPredicatedCall(
-                            ins, IPOINT_BEFORE, (AFUNPTR) LoadSingle,
-                            IARG_THREAD_ID,
-                            IARG_MEMORYREAD_EA,
-                            IARG_UINT32, instId,
-                            IARG_END);
-                    }
-                    else
-                    {
-                        INS_InsertPredicatedCall(
-                            ins, IPOINT_BEFORE,  (AFUNPTR) LoadMulti,
-                            IARG_THREAD_ID,
-                            IARG_MEMORYREAD_EA,
-                            IARG_MEMORYREAD_SIZE,
-                            IARG_UINT32, instId,
-                            IARG_END);
-                    }
-                }
-                else
-                {
-                    if( single )
-                    {
-                        INS_InsertPredicatedCall(
-                            ins, IPOINT_BEFORE,  (AFUNPTR) LoadSingleFast,
-                            IARG_THREAD_ID,
-                            IARG_MEMORYREAD_EA,
-                            IARG_END);
-
-                    }
-                    else
-                    {
-                        INS_InsertPredicatedCall(
-                            ins, IPOINT_BEFORE,  (AFUNPTR) LoadMultiFast,
-                            IARG_THREAD_ID,
-                            IARG_MEMORYREAD_EA,
-                            IARG_MEMORYREAD_SIZE,
-                            IARG_END);
-                    }
-                }
-
-            } // Memory Read
-
-            if ( INS_IsMemoryWrite(ins) )
-            {
-                // map sparse INS addresses to dense IDs
-                const ADDRINT iaddr = INS_Address(ins);
-                const UINT32 instId = profileData.Map(iaddr);
-
-                const UINT32 size = INS_MemoryWriteSize(ins);
-
-                const BOOL single = (size <= 4);
-
-                if( catch_all_config.track_stores )
-                {
-                    if( single )
-                    {
-                        INS_InsertPredicatedCall(
-                            ins, IPOINT_BEFORE,  (AFUNPTR) StoreSingle,
-                            IARG_THREAD_ID,
-                            IARG_MEMORYWRITE_EA,
-                            IARG_UINT32, instId,
-                            IARG_END);
-                    }
-                    else
-                    {
-                        INS_InsertPredicatedCall(
-                            ins, IPOINT_BEFORE,  (AFUNPTR) StoreMulti,
-                            IARG_THREAD_ID,
-                            IARG_MEMORYWRITE_EA,
-                            IARG_MEMORYWRITE_SIZE,
-                            IARG_UINT32, instId,
-                            IARG_END);
-                    }
-
-                }
-                else
-                {
-                    if( single )
-                    {
-                        INS_InsertPredicatedCall(
-                            ins, IPOINT_BEFORE,  (AFUNPTR) StoreSingleFast,
-                            IARG_THREAD_ID,
-                            IARG_MEMORYWRITE_EA,
-                            IARG_END);
-
-                    }
-                    else
-                    {
-                        INS_InsertPredicatedCall(
-                            ins, IPOINT_BEFORE,  (AFUNPTR) StoreMultiFast,
-                            IARG_THREAD_ID,
-                            IARG_MEMORYWRITE_EA,
-                            IARG_MEMORYWRITE_SIZE,
-                            IARG_END);
-                    }
-                }
-            } // End Memory Write
-            //} // End Debug by Instrumenting only the Test Method
-
-	} // End Ins For
-
-    } // End outer For
-}
+                INS_InsertPredicatedCall(
+                    ins, IPOINT_BEFORE, (AFUNPTR) CacheStore,
+                    IARG_THREAD_ID,
+                    IARG_MEMORYWRITE_EA,
+                    IARG_UINT32, instId,
+                    IARG_END);
+            }
+        } // End memory write
+    } // End memOp fFor loop
+} // End outer For
 
 /* ===================================================================== */
-VOID
-ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, VOID *v)
+VOID ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, VOID *v)
 {
     SMPMain(THREAD_ATTACH);
 }
 
 /* ===================================================================== */
-VOID
-ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, VOID *v)
+VOID ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, VOID *v)
 {
     SMPMain(THREAD_DETACH);
 }
 
 /* ===================================================================== */
-VOID
-Fini(int code, VOID * v)
+VOID Fini(int code, VOID * v)
 {
     SMPMain(PROCESS_DETACH);
 }
 
 /* ===================================================================== */
-int
-main(int argc, char *argv[])
+int main(int argc, char *argv[])
 {
 
 #if defined (__DEBUG__)
@@ -427,26 +279,23 @@ main(int argc, char *argv[])
 
     Initialization();
 
-#if defined (__DEBUG__)                           // <3>
+#if defined (__DEBUG__)
     CheckRtns.insert("_Z4tst1Pv");
     CheckRtns.insert("_Z5pmainiPPc");
     //CheckRtns.insert("_Z4tst2Pv");
     //CheckRtns.insert("_Z4tst3Pv");
-
     DataAddrs.insert(0x0805AA84);
     //DataAddrs.insert(0x0805A988);
     //DataAddrs.insert(0x0805A98C);
 #endif
 
     COUNTER_HIT_MISS threshold;
-
     threshold[COUNTER_HIT]  = catch_all_config.threshold_hit;
     threshold[COUNTER_MISS] = catch_all_config.threshold_miss ;
-
     profileData.SetThreshold( threshold );
 
-    // Register Trace to be called when each image is loaded.
-    TRACE_AddInstrumentFunction(Trace, 0);
+    // Register Trace to be called when each instruction is loaded.
+    INS_AddInstrumentFunction(Instruction, 0);
 
     // Register Fini to be called when the application exits
     PIN_AddFiniFunction(Fini, 0);
@@ -455,6 +304,7 @@ main(int argc, char *argv[])
     PIN_AddThreadStartFunction(ThreadStart, (VOID *) 0);
     PIN_AddThreadFiniFunction(ThreadFini, (VOID *) 0);
 
+    // Initialize main process
     SMPMain(PROCESS_ATTACH);
 
     // Never returns

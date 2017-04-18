@@ -303,8 +303,7 @@ class DIR_MSI : public UPDATE<SET,CACHE>
 
 /* ===================================================================== */
 template <class SET, class CACHE>
-HIT_MISS_TYPES
-DIR_MSI<SET,CACHE>::processRead(SET *set, CACHE_TAG tag, INT32 *cost){
+HIT_MISS_TYPES DIR_MSI<SET,CACHE>::processRead(SET *set, CACHE_TAG tag, INT32 *cost){
     UINT32 destination = getHomeNode(tag);
     HIT_MISS_TYPES result = CACHE_MISS;
     INT32 index = set->Find(tag);
@@ -342,8 +341,7 @@ DIR_MSI<SET,CACHE>::processRead(SET *set, CACHE_TAG tag, INT32 *cost){
 
 /* ===================================================================== */
 template <class SET, class CACHE>
-HIT_MISS_TYPES
-DIR_MSI<SET,CACHE>::processWrite(SET *set, CACHE_TAG tag, INT32 *cost){
+HIT_MISS_TYPES DIR_MSI<SET,CACHE>::processWrite(SET *set, CACHE_TAG tag, INT32 *cost){
     HIT_MISS_TYPES result = CACHE_MISS;
     UINT32 destination = getHomeNode(tag);
     INT32 index = set->Find(tag);
@@ -386,8 +384,7 @@ DIR_MSI<SET,CACHE>::processWrite(SET *set, CACHE_TAG tag, INT32 *cost){
 
 /* ===================================================================== */
 template <class SET, class CACHE>
-VOID
-DIR_MSI<SET,CACHE>::ReadMiss(CACHE_TAG tag, UINT32 localNode)
+VOID DIR_MSI<SET,CACHE>::ReadMiss(CACHE_TAG tag, UINT32 localNode)
 {
     DIRECTORY_LINE *dirPtr = this->getDirLine(tag);
     if (dirPtr->writeBit == true)
@@ -402,44 +399,38 @@ DIR_MSI<SET,CACHE>::ReadMiss(CACHE_TAG tag, UINT32 localNode)
 }
 /* ===================================================================== */
 template <class SET, class CACHE>
-VOID
-DIR_MSI<SET,CACHE>::DataValueReply()
+VOID DIR_MSI<SET,CACHE>::DataValueReply()
 {
     // Dummy
 }
 /* ===================================================================== */
 template <class SET, class CACHE>
-VOID
-DIR_MSI<SET,CACHE>::DataWriteBack()
+VOID DIR_MSI<SET,CACHE>::DataWriteBack()
 {
     // Dummy
 }
 /* ===================================================================== */
 template <class SET, class CACHE>
-VOID
-DIR_MSI<SET,CACHE>::Fetch(SET *set, CACHE_TAG tag)
+VOID DIR_MSI<SET,CACHE>::Fetch(SET *set, CACHE_TAG tag)
 {
     set->SetState(set->Find(tag),CACHE_STATES::SHARED);
 }
 /* ===================================================================== */
 template <class SET, class CACHE>
-VOID
-DIR_MSI<SET,CACHE>::FetchAndInvalidate(SET *set, CACHE_TAG tag)
+VOID DIR_MSI<SET,CACHE>::FetchAndInvalidate(SET *set, CACHE_TAG tag)
 {
     set->SetState(set->Find(tag),CACHE_STATES::INVALID);
 }
 /* ===================================================================== */
 template <class SET, class CACHE>
-VOID
-DIR_MSI<SET,CACHE>::Invalidate(SET *set, CACHE_TAG tag)
+VOID DIR_MSI<SET,CACHE>::Invalidate(SET *set, CACHE_TAG tag)
 {
     set->SetState(set->Find(tag),CACHE_STATES::INVALID);
 }
 
 /* ===================================================================== */
 template <class SET, class CACHE>
-VOID
-DIR_MSI<SET,CACHE>::WriteMiss(CACHE_TAG tag, UINT32 localNode)
+VOID DIR_MSI<SET,CACHE>::WriteMiss(CACHE_TAG tag, UINT32 localNode)
 {
     DIRECTORY_LINE *dirPtr = this->getDirLine(tag);
     INT32 tmp = dirPtr->presenceBits;
