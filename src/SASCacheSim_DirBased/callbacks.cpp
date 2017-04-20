@@ -7,32 +7,28 @@
  */
 
 #include "callbacks.H"
-#include "profile.H"
 #include "cache.H"
 #include "coherence.H"
 #include <assert.h>
 #include <iostream>
 #include <fstream>
 #include <list>
-#include <map>
+#include <unordered_map>
 #include <vector>
-
-// wrap configuration constants into their own name space to avoid name clashes
-
-typedef enum
-{
-    COUNTER_MISS = 0,
-    COUNTER_HIT = 1,
-    COUNTER_NUM
-} COUNTER;
-
-typedef  COUNTER_ARRAY<UINT64, COUNTER_NUM> COUNTER_HIT_MISS;
 
 extern KNOB<string> KnobOutputFile;
 extern KNOB<BOOL>   KnobNoSharedLibs;
 extern SIMULATION_CONFIG catch_all_config;
 extern CACHE_CONFIG l1_config;
 
+class Stat
+{
+public:
+    UINT64 loads = 0;
+    UINT64 stores = 0;
+};
+
+std::unordered_map<ADDRINT, Stat> _mem;
 
 /* ===================================================================== */
 /* Global Variables */
@@ -54,12 +50,6 @@ set<UINT32> DataAddrs;
 int lock_id = 1;
 PIN_LOCK mapLock;
 
-// holds the counters with misses and hits
-// conceptually this is an array indexed by instruction address
-
-COMPRESSOR_COUNTER<ADDRINT, UINT32, COUNTER_HIT_MISS> profileData;
-COMPRESSOR_COUNTER<ADDRINT, UINT32, COUNTER_HIT_MISS> profileInst;
-
 
 /* ===================================================================== */
 UINT32 getHomeNode(CACHE_TAG tag)
@@ -76,7 +66,7 @@ UINT32 getPID(UINT32 tid)
 
 /* ===================================================================== */
 
-VOID CacheLoad(UINT32 tid, ADDRINT addr, UINT32 instId)
+VOID CacheLoad(UINT32 tid, ADDRINT addr)
 {
 #if defined (__DEBUG__)
     if (DataAddrs.find(addr) == DataAddrs.end()) {return;}
@@ -84,14 +74,13 @@ VOID CacheLoad(UINT32 tid, ADDRINT addr, UINT32 instId)
 
     PIN_GetLock(&mapLock, lock_id++);
     HIT_MISS_TYPES dl1Hit = p_array[getPID(tid)]->LoadSingleLine(addr);
-    const COUNTER counter = dl1Hit ? COUNTER_HIT : COUNTER_MISS;
-    profileData[instId][counter]++;
+    IncreaseLoad(addr);
     PIN_ReleaseLock(&mapLock);
 }
 
 /* ===================================================================== */
 
-VOID CacheStore(UINT32 tid, ADDRINT addr, UINT32 instId)
+VOID CacheStore(UINT32 tid, ADDRINT addr)
 {
 #if defined (__DEBUG__)
     if (DataAddrs.find(addr) == DataAddrs.end()) {return;}
@@ -99,8 +88,7 @@ VOID CacheStore(UINT32 tid, ADDRINT addr, UINT32 instId)
 
     PIN_GetLock(&mapLock, lock_id++);
     HIT_MISS_TYPES dl1Hit = p_array[getPID(tid)]->StoreSingleLine(addr);
-    const COUNTER counter = dl1Hit ? COUNTER_HIT : COUNTER_MISS;
-    profileData[instId][counter]++;
+    IncreaseStore(addr);
     PIN_ReleaseLock(&mapLock);
 }
 
@@ -160,11 +148,7 @@ VOID Fini()
     }
     if (catch_all_config.track_loads || catch_all_config.track_stores)
     {
-        out <<
-            "#\n"
-            "# LOAD stats\n"
-            "#\n";
-        out << profileData.StringLong();
+        out << StatToString();
     }
 
 
@@ -186,12 +170,8 @@ VOID SMPMain(int reason)
         totalBitsToShift = 16 - FloorLog2(l1_config.line_size);
         pow2processors = 1 << CeilLog2(catch_all_config.total_processors);
         processorsMask = pow2processors-1;
-        std::cout << "main app " << std::endl;
-
         // Creates Processors
         setProcessorsArray(pow2processors);
-        // Adding Main Thread
-        // (VOID)t_map.insert(std::pair<UINT32, UINT32>(get_current_tid(), get_next_pid()));
         break;
 
       case PROCESS_DETACH:
@@ -215,4 +195,26 @@ VOID SMPMain(int reason)
         }
         break;
     }
+}
+
+void IncreaseLoad(ADDRINT addr)
+{
+    ++_mem[addr].loads;
+}
+
+void IncreaseStore(ADDRINT addr)
+{
+    ++_mem[addr].stores;
+}
+
+std::string StatToString()
+{
+    std::stringstream ss;
+    ss << "Memory Stats:\n";
+    ss << "Addr\tLoads\tStores\n";
+    for (const auto& p : _mem)
+    {
+        ss << hexstr(p.first,8) << "\t" << p.second.loads << "\t" << p.second.stores << "\n";
+    }
+    return ss.str();
 }

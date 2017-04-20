@@ -9,7 +9,6 @@
  */
 
 #include "pin.H"
-#include "profile.H"
 #include "callbacks.H"
 #include <assert.h>
 #include <cstdio>
@@ -17,21 +16,6 @@
 #include <iostream>
 #include <fstream>
 #include <set>
-
-typedef enum
-{
-    COUNTER_MISS = 0,
-    COUNTER_HIT = 1,
-    COUNTER_NUM
-} COUNTER;
-
-typedef  COUNTER_ARRAY<UINT64, COUNTER_NUM> COUNTER_HIT_MISS;
-
-// holds the counters with misses and hits
-// conceptually this is an array indexed by instruction address
-extern COMPRESSOR_COUNTER<ADDRINT, UINT32, COUNTER_HIT_MISS> profileData;
-extern COMPRESSOR_COUNTER<ADDRINT, UINT32, COUNTER_HIT_MISS> profileInst;
-
 
 /* ===================================================================== */
 /* Commandline Switches                                                  */
@@ -201,18 +185,11 @@ LOCALFUN VOID Initialization()
  ===================================================================== */
 VOID Instruction(INS ins, VOID *v)
 {
-    /* Instruments predicated call, called iff the instruction will actually be executed.
-       For IA-32 and Intel(R) 64 architectures, conditional moves and REP
-       prefixed instructions appear as predicated instructions in Pin. */
     UINT32 memOperands = INS_MemoryOperandCount(ins);
 
     // Iterate over each memory operand of the instruction.
     for (UINT32 memOp = 0; memOp < memOperands; memOp++)
     {
-        // map sparse INS addresses to dense IDs
-        const ADDRINT iaddr = INS_Address(ins);
-        const UINT32 instId = profileData.Map(iaddr);
-
         if (INS_MemoryOperandIsRead(ins, memOp))
         {
             if( catch_all_config.track_loads )
@@ -221,14 +198,10 @@ VOID Instruction(INS ins, VOID *v)
                     ins, IPOINT_BEFORE, (AFUNPTR) CacheLoad,
                     IARG_THREAD_ID,
                     IARG_MEMORYREAD_EA,
-                    IARG_UINT32, instId,
                     IARG_END);
             }
         } // End memory read
 
-        /* Note that in some architectures a single memory operand can be
-           both read and written (for instance incl (%eax) on IA-32)
-           In that case we instrument it once for read and once for write.*/
         if (INS_MemoryOperandIsWritten(ins, memOp))
         {
             if( catch_all_config.track_stores )
@@ -237,7 +210,6 @@ VOID Instruction(INS ins, VOID *v)
                     ins, IPOINT_BEFORE, (AFUNPTR) CacheStore,
                     IARG_THREAD_ID,
                     IARG_MEMORYWRITE_EA,
-                    IARG_UINT32, instId,
                     IARG_END);
             }
         } // End memory write
@@ -278,21 +250,6 @@ int main(int argc, char *argv[])
     }
 
     Initialization();
-
-#if defined (__DEBUG__)
-    CheckRtns.insert("_Z4tst1Pv");
-    CheckRtns.insert("_Z5pmainiPPc");
-    //CheckRtns.insert("_Z4tst2Pv");
-    //CheckRtns.insert("_Z4tst3Pv");
-    DataAddrs.insert(0x0805AA84);
-    //DataAddrs.insert(0x0805A988);
-    //DataAddrs.insert(0x0805A98C);
-#endif
-
-    COUNTER_HIT_MISS threshold;
-    threshold[COUNTER_HIT]  = catch_all_config.threshold_hit;
-    threshold[COUNTER_MISS] = catch_all_config.threshold_miss ;
-    profileData.SetThreshold( threshold );
 
     // Register Trace to be called when each instruction is loaded.
     INS_AddInstrumentFunction(Instruction, 0);

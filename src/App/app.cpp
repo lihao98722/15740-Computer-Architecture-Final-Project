@@ -14,7 +14,7 @@ std::mutex iomutex;
 #endif
 
 #define DATA_T uint64_t
-const DATA_T ROUND = 1e8;
+const DATA_T ROUND = 1e5;
 const int SYNC = 1000;
 
 std::mutex mx;
@@ -29,6 +29,7 @@ void produce()
 {
     local_irq_disable();
     std::this_thread::sleep_for(std::chrono::milliseconds(SYNC));
+
     for (DATA_T i = 0; i <= ROUND; ++i)
     {
         std::lock_guard<std::mutex> lock{mx};
@@ -46,6 +47,7 @@ void consume()
     local_irq_disable();
     std::this_thread::sleep_for(std::chrono::milliseconds(SYNC));
     volatile DATA_T reader = 1;
+
     for (int i = 0; i < ROUND; ++i)
     {
         std::lock_guard<std::mutex> lock{mx};
@@ -72,6 +74,8 @@ int main()
     // int nthreads = static_cast<int>(std::thread::hardware_concurrency() / 2 - 1);
     int nthreads = 3;
     std::vector<std::thread> ths(nthreads);
+
+    std::cout << "Memory Addr: " << std::hex << &data << std::endl;
 
     std::cout << "Launching " << nthreads << " threads" << std::endl;
 

@@ -10,7 +10,8 @@
 #define _CALLBACKS__H_
 
 #include "pin.H"
-#include "profile.H"
+#include <unordered_map>
+
 
 #define THREAD_ATTACH   1
 #define THREAD_DETACH   2
@@ -85,16 +86,14 @@ typedef struct
     INT32  total_processors;
 } SIMULATION_CONFIG;
 
-#if defined (__cplusplus)
-extern "C" {
-#endif
-extern VOID CacheLoad(UINT32 tid, ADDRINT addr, UINT32 instId);
-extern VOID CacheStore(UINT32 tid, ADDRINT addr, UINT32 instId);
-extern VOID Fini(int code, VOID * v);
-extern VOID SMPMain(int reason);
+VOID CacheLoad(UINT32 tid, ADDRINT addr);
+VOID CacheStore(UINT32 tid, ADDRINT addr);
+VOID Fini(int code, VOID * v);
+VOID SMPMain(int reason);
 
-#if defined (__cplusplus)
-}
-#endif
+
+void IncreaseLoad(ADDRINT addr);
+void IncreaseStore(ADDRINT addr);
+std::string StatToString();
 
 #endif // _CALLBACKS__H_
