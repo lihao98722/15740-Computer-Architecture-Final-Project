@@ -277,7 +277,7 @@ class CACHE_BASE
     UINT32 NumSets() const { return _setIndexMask + 1; }
 
   public:
-    // constructors/destructors
+    // constructors / destructors
     CACHE_BASE(std::string name, UINT32 cacheSize, UINT32 lineSize, UINT32 associativity);
 
     // accessors
@@ -501,11 +501,7 @@ class CACHE : public CACHE_BASE
         mypid = pid;
         mymap = map;
 
-        if (coherence_write == WRITE_THROUGH_NO_ALLOCATE && coherence_protocol == PROTOCOL_VI)
-        {
-            coherence = new UPDATE<SET,CACHE>(map, mypid);
-        }
-        else if (coherence_write == WRITE_BACK_ALLOCATE && coherence_protocol == PROTOCOL_MSI)
+        if (coherence_write == WRITE_BACK_ALLOCATE && coherence_protocol == PROTOCOL_MSI)
         {
             coherence = new DIR_MSI<SET,CACHE>(map, mypid);
         }
@@ -514,7 +510,6 @@ class CACHE : public CACHE_BASE
             perror("CACHE_BASE: Invalid combination of cache write strategy and coherence protocol");
             exit(1);
         }
-
         interconnection = interconnection_type;
     }
 
@@ -522,10 +517,6 @@ class CACHE : public CACHE_BASE
     {
         delete[] _sets;
     }
-
-    /// Cache access from addr to addr+size-1
-    HIT_MISS_TYPES Load(ADDRINT addr, UINT32 size);
-    HIT_MISS_TYPES Store(ADDRINT addr, UINT32 size);
 
     /// Cache access at addr that does not span cache lines
     HIT_MISS_TYPES LoadSingleLine(ADDRINT addr);
@@ -541,68 +532,6 @@ SET* CACHE<SET>::getSET(CACHE_TAG tag)
 {
     UINT32 setIndex = GetIndex(tag);
     return &_sets[setIndex];
-}
-
-/* ===================================================================== */
-/*!
- *  @return true if all accessed cache lines hit
- */
-/* ===================================================================== */
-template <class SET>
-HIT_MISS_TYPES CACHE<SET>::Store(ADDRINT addr, UINT32 size)
-{
-    const ADDRINT highAddr = addr + size;
-    HIT_MISS_TYPES allHit = CACHE_HIT;
-    const ADDRINT lineSize = LineSize();
-    const ADDRINT notLineMask = ~(lineSize - 1);
-    INT32 cost;
-    do
-    {
-        CACHE_TAG tag;
-        UINT32 setIndex;
-        SplitAddress(addr, tag, setIndex);
-        SET & set = _sets[setIndex];
-        HIT_MISS_TYPES localHit = coherence->processWrite(&set, tag, &cost);
-	      allHit = localHit;
-        addr = (addr & notLineMask) + lineSize;   // start of next cache line
-    }
-    while (addr < highAddr);
-
-    _access[ACCESS_TYPE_STORE][allHit]++;
-    _cost += cost;
-    return allHit;
-}
-
-/* ===================================================================== */
-/*!
- *  @return true if all accessed cache lines hit
- */
-/* ===================================================================== */
-template <class SET>
-HIT_MISS_TYPES CACHE<SET>::Load(ADDRINT addr, UINT32 size)
-{
-    const ADDRINT highAddr = addr + size;
-    HIT_MISS_TYPES allHit = CACHE_HIT;
-    const ADDRINT lineSize = LineSize();
-    const ADDRINT notLineMask = ~(lineSize - 1);
-    INT32 cost;
-
-    do
-    {
-        CACHE_TAG tag;
-        UINT32 setIndex;
-        SplitAddress(addr, tag, setIndex);
-        SET & set = _sets[setIndex];
-        HIT_MISS_TYPES localHit = coherence->processRead(&set, tag, &cost);
-	      allHit = localHit;
-        addr = (addr & notLineMask) + lineSize;   // start of next cache line
-    }
-    while (addr < highAddr);
-
-    _access[ACCESS_TYPE_LOAD][allHit]++;
-    _cost += cost;
-
-    return allHit;
 }
 
 /* ===================================================================== */
