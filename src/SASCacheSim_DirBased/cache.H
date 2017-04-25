@@ -16,26 +16,13 @@
 #define MEGA (KILO*KILO)
 #define GIGA (KILO*MEGA)
 
-typedef UINT64 CACHE_STATS; // type of cache hit/miss counters
+typedef UINT64 CACHE_STATS;       // type of cache hit/miss counters
 
 #include <sstream>
 #include <iostream>
 #include <fstream>
+#include <iomanip>
 
-/* ===================================================================== */
-/*! RMR (rodric@gmail.com)
- *   - temporary work around because decstr()
- *     casts 64 bit ints to 32 bit ones
- */
-/* ===================================================================== */
-static string mydecstr(UINT64 v, UINT32 w)
-{
-    ostringstream o;
-    o.width(w);
-    o << v;
-    string str(o.str());
-    return str;
-}
 
 /* ===================================================================== */
 /*!
@@ -359,10 +346,10 @@ class CACHE_BASE
 };
 
 /* ===================================================================== */
-CACHE_BASE::CACHE_BASE(std::string name,
-                       UINT32      cacheSize,
-                       UINT32      lineSize,
-                       UINT32      associativity)
+CACHE_BASE::CACHE_BASE( std::string name,
+                        UINT32      cacheSize,
+                        UINT32      lineSize,
+                        UINT32      associativity)
                       : _name(name),
                         _cacheSize(cacheSize),
                         _lineSize(lineSize),
@@ -388,11 +375,8 @@ CACHE_BASE::CACHE_BASE(std::string name,
 /* ===================================================================== */
 string CACHE_BASE::StatsLong(string prefix, CACHE_TYPE cache_type) const
 {
-    const UINT32 headerWidth = 19;
-    const UINT32 numberWidth = 12;
-
-    string out;
-    out += prefix + _name + "\n";
+    std::stringstream out;
+    out << prefix << _name << "\n";
 
     for (UINT32 i = 0; i < ACCESS_TYPE_NUM; i++)
     {
@@ -400,70 +384,52 @@ string CACHE_BASE::StatsLong(string prefix, CACHE_TYPE cache_type) const
 
         std::string type(accessType == ACCESS_TYPE_LOAD ? "Load" : "Store");
 
-        out += prefix + ljstr(type + "-Hits:                ", headerWidth)
-                      + mydecstr(Hits(accessType), numberWidth)
-                      + "  "
-                      + fltstr(100.0 * Hits(accessType) / Accesses(accessType), 2, 6)
-                      + "%\n";
+        out << prefix << std::setw(25) << std::left << (type + "-Hits")
+                      << std::setw(15) << std::left << Hits(accessType)
+                      << std::setw(10) << std::left << (100.0 * Hits(accessType) / Accesses(accessType))
+                      << "%" << "\n";
 
-        out += prefix + ljstr(type + "-Misses:              ", headerWidth)
-                      + mydecstr(Misses(accessType), numberWidth)
-                      + "  "
-                      + fltstr(100.0 * Misses(accessType) / Accesses(accessType), 2, 6)
-                      + "%\n";
+        out << prefix << std::setw(25) << std::left << (type + "-Misses:")
+                      << std::setw(15) << std::left << Misses(accessType)
+                      << std::setw(10) << std::left << (100.0 * Misses(accessType) / Accesses(accessType))
+                      << "%" << "\n";
 
-        out += prefix + ljstr(type + "-Coherence Misses:    ", headerWidth)
-                      + mydecstr(CoherenceMisses(accessType), numberWidth)
-                      + "  "
-                      + fltstr(100.0 * CoherenceMisses(accessType) / Accesses(accessType), 2, 6)
-                      + "%\n";
+        out << prefix << std::setw(25) << std::left << (type + "-Coherence Misses:")
+                      << std::setw(15) << std::left << CoherenceMisses(accessType)
+                      << std::setw(10) << std::left << (100.0 * CoherenceMisses(accessType) / Accesses(accessType))
+                      << "%" << "\n";
 
-        out += prefix + ljstr(type + "-Accesses:            ", headerWidth)
-                      + mydecstr(Accesses(accessType), numberWidth)
-                      + "  "
-                      + fltstr(100.0 * Accesses(accessType) / Accesses(accessType), 2, 6)
-                      + "%\n";
-
-        out += prefix + "\n";
+        out << prefix << std::setw(25) << std::left << (type + "-Total Accesses:")
+                      << std::setw(15) << std::left << Accesses(accessType)
+                      << "\n\n";
     }
 
-    out += prefix + ljstr("Total-Hits:            ", headerWidth)
-                  + mydecstr(Hits(), numberWidth)
-                  + "  "
-                  + fltstr(100.0 * Hits() / Accesses(), 2, 6)
-                  + "%\n";
+    out << prefix << std::setw(25) << std::left << "Total-Hits:"
+                  << std::setw(15) << std::left << Hits()
+                  << std::setw(10) << std::left << (100.0 * Hits() / Accesses())
+                  << "%" << "\n";
 
-    out += prefix + ljstr("Total-Misses:          ", headerWidth)
-                  + mydecstr(Misses(), numberWidth)
-                  + "  "
-                  + fltstr(100.0 * Misses() / Accesses(), 2, 6)
-                  + "%\n";
+    out << prefix << std::setw(25) << std::left << "Total-Misses:"
+                  << std::setw(15) << std::left << Misses()
+                  << std::setw(10) << std::left << (100.0 * Misses() / Accesses())
+                  << "%" << "\n";
 
-    out += prefix + ljstr("Total-Accesses:        ", headerWidth)
-                  + mydecstr(Accesses(), numberWidth)
-                  + "  "
-                  + fltstr(100.0 * Accesses() / Accesses(), 2, 6)
-                  + "%\n";
+    out << prefix << std::setw(25) << std::left << "Total-Accesses:"
+                  << std::setw(15) << std::left << Accesses()
+                  << "\n\n";
 
-    out += "\n";
+    out << prefix << std::setw(25) << std::left << "Estimated Cost:"
+                  << std::setw(15) << std::left << Cost()
+                  << "Cycles" << "\n\n";
 
-    out += prefix + ljstr("Estimated Cost:        ", headerWidth)
-                  + mydecstr(Cost(), numberWidth)
-                  + " Cycles\n";
-
-    out += "\n";
-
-    return out;
+    return out.str();
 }
 
-/* ===================================================================== */
-/*!
- *  @brief Templated cache class with specific cache set allocation policies
- *
- *  All that remains to be done here is allocate and deallocate the right
- *  type of cache sets.
- */
-/* ===================================================================== */
+/* ========================================================================== */
+/*  @brief Templated cache class with specific cache set allocation policies  */
+/*  All that remains to be done here is allocate and deallocate the right     */
+/*  type of cache sets.                                                       */
+/* ========================================================================== */
 #include "coherence.H"
 template <class SET>
 class CACHE : public CACHE_BASE
@@ -480,15 +446,16 @@ class CACHE : public CACHE_BASE
     COHERENCE<SET,CACHE> *coherence;
 
     // constructors/destructors
-    CACHE(std::string name,
-          UINT32 cacheSize,
-          UINT32 lineSize,
-          UINT32 associativity,
-          UINT32 coherence_write,
-          UINT32 coherence_protocol,
-          UINT32 interconnection_type,
-          CACHE ** map,
-          UINT32 pid) : CACHE_BASE(name, cacheSize, lineSize, associativity)
+    CACHE(  std::string   name,
+            UINT32        cacheSize,
+            UINT32        lineSize,
+            UINT32        associativity,
+            UINT32        coherence_write,
+            UINT32        coherence_protocol,
+            UINT32        interconnection_type,
+            CACHE **      map,
+            UINT32        pid)
+          : CACHE_BASE(name, cacheSize, lineSize, associativity)
     {
         _sets = new SET[NumSets()];
 
@@ -535,9 +502,7 @@ SET* CACHE<SET>::getSET(CACHE_TAG tag)
 }
 
 /* ===================================================================== */
-/*!
- *  @return true if accessed cache line hits
- */
+/*  @return true if accessed cache line hits                             */
 /* ===================================================================== */
 template <class SET>
 HIT_MISS_TYPES CACHE<SET>::LoadSingleLine(ADDRINT addr)
@@ -554,9 +519,7 @@ HIT_MISS_TYPES CACHE<SET>::LoadSingleLine(ADDRINT addr)
 }
 
 /* ===================================================================== */
-/*!
- *  @return true if accessed cache line hits
- */
+/*  @return true if accessed cache line hits                             */
 /* ===================================================================== */
 template <class SET>
 HIT_MISS_TYPES CACHE<SET>::StoreSingleLine(ADDRINT addr)

@@ -64,7 +64,7 @@ UINT32 getPID(UINT32 tid)
 VOID CacheLoad(UINT32 tid, ADDRINT addr)
 {
     PIN_GetLock(&mapLock, lock_id++);
-    HIT_MISS_TYPES dl1Hit = p_array[getPID(tid)]->LoadSingleLine(addr);
+    p_array[getPID(tid)]->LoadSingleLine(addr);
     IncreaseLoad(addr);
     PIN_ReleaseLock(&mapLock);
 }
@@ -74,7 +74,7 @@ VOID CacheLoad(UINT32 tid, ADDRINT addr)
 VOID CacheStore(UINT32 tid, ADDRINT addr)
 {
     PIN_GetLock(&mapLock, lock_id++);
-    HIT_MISS_TYPES dl1Hit = p_array[getPID(tid)]->StoreSingleLine(addr);
+    p_array[getPID(tid)]->StoreSingleLine(addr);
     IncreaseStore(addr);
     PIN_ReleaseLock(&mapLock);
 }
@@ -128,8 +128,8 @@ inline UINT32 get_next_pid()
 VOID Fini()
 {
     std::ofstream out(KnobOutputFile.Value().c_str());
-    // Starting from thread 1 since thread0 is the main application
-    for (UINT32 i=0; i<pow2processors; i++)
+    // Skip main process, starting from thread 1 since thread0 is the main application
+    for (auto i = 1; i < catch_all_config.total_processors; ++i)
     {
         out << p_array[i]->StatsLong("+ " , CACHE_BASE::CACHE_TYPE_DCACHE) << endl;
     }
@@ -137,7 +137,6 @@ VOID Fini()
     {
         out << StatToString();
     }
-
 
     out.close();
 }
@@ -157,8 +156,7 @@ VOID SMPMain(int reason)
         totalBitsToShift = 16 - FloorLog2(l1_config.line_size);
         pow2processors = 1 << CeilLog2(catch_all_config.total_processors);
         processorsMask = pow2processors-1;
-        // Creates Processors
-        setProcessorsArray(pow2processors);
+        setProcessorsArray(pow2processors);    // Creates Processors
         break;
 
       case PROCESS_DETACH:
