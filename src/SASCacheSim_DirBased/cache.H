@@ -93,7 +93,7 @@ namespace CACHE_STATES
      MODIFIED,
      VALID
    } CACHE_STATE;
-} // CACHE_STATES
+}
 
 typedef enum
 {
@@ -247,23 +247,21 @@ class CACHE_BASE
     } CACHE_TYPE;
 
   protected:
-    static const UINT32 HIT_MISS_NUM = 3;
-    CACHE_STATS _access[ACCESS_TYPE_NUM][HIT_MISS_NUM];
-    CACHE_STATS _fetch[HIT_MISS_NUM];  // instruction cache
-    CACHE_STATS _cost;
+    static const UINT32   HIT_MISS_NUM = 3;
+    CACHE_STATS           _access[ACCESS_TYPE_NUM][HIT_MISS_NUM];
+    CACHE_STATS           _cost;
 
   private:
     // input params
-    const std::string _name;
-    const UINT32 _cacheSize;
-    const UINT32 _lineSize;
-    const UINT32 _associativity;
+    const std::string     _name;
+    const UINT32          _cacheSize;
+    const UINT32          _lineSize;
+    const UINT32          _associativity;
 
     // computed params
-    const UINT32 _lineShift;
-    const UINT32 _setIndexMask;
+    const UINT32          _lineShift;
+    const UINT32          _setIndexMask;
 
-    /* ===================================================================== */
     CACHE_STATS SumAccess(bool hit) const
     {
         CACHE_STATS sum = 0;
@@ -272,16 +270,7 @@ class CACHE_BASE
         {
             sum += _access[accessType][hit];
         }
-
         return sum;
-    }
-
-    /* ===================================================================== */
-    /** Gang-Ryung Uh: The following is for instruction cache */
-    /* ===================================================================== */
-    inline CACHE_STATS SumFetchAccess(bool hit) const
-    {
-        return _fetch[hit];
     }
 
   protected:
@@ -341,27 +330,6 @@ class CACHE_BASE
     }
 
     /* ===================================================================== */
-    inline CACHE_STATS IHits() const {
-        return SumFetchAccess(true);
-    }   // Gang-Ryung Uh
-
-    /* ===================================================================== */
-    inline CACHE_STATS IMisses() const {
-        return SumFetchAccess(false);
-    }// Gang-Ryung Uh
-
-    /* ===================================================================== */
-    inline CACHE_STATS ICoherenceMisses() const {
-        return SumFetchAccess(false);
-    }// Adrian Perez
-
-    /* ===================================================================== */
-    inline CACHE_STATS IAccesses() const {
-        return IHits() + IMisses() + ICoherenceMisses();
-    }// Gang-Ryung Uh
-
-
-    /* ===================================================================== */
     inline CACHE_STATS Cost() const {
         return _cost;
     }
@@ -391,13 +359,16 @@ class CACHE_BASE
 };
 
 /* ===================================================================== */
-CACHE_BASE::CACHE_BASE(std::string name, UINT32 cacheSize, UINT32 lineSize, UINT32 associativity)
-  : _name(name),
-    _cacheSize(cacheSize),
-    _lineSize(lineSize),
-    _associativity(associativity),
-    _lineShift(FloorLog2(lineSize)),
-    _setIndexMask((cacheSize / (associativity * lineSize)) - 1)
+CACHE_BASE::CACHE_BASE(std::string name,
+                       UINT32      cacheSize,
+                       UINT32      lineSize,
+                       UINT32      associativity)
+                      : _name(name),
+                        _cacheSize(cacheSize),
+                        _lineSize(lineSize),
+                        _associativity(associativity),
+                        _lineShift(FloorLog2(lineSize)),
+                        _setIndexMask((cacheSize / (associativity * lineSize)) - 1)
 {
     ASSERTX(IsPower2(_lineSize));
     ASSERTX(IsPower2(_setIndexMask + 1));
@@ -409,124 +380,79 @@ CACHE_BASE::CACHE_BASE(std::string name, UINT32 cacheSize, UINT32 lineSize, UINT
         _access[accessType][COHERENCE_MISS] = 0;
     }
 
-    _fetch[false] = 0;  // Gang-Ryung Uh: for instruction cache
-    _fetch[true]  = 0;  // Gang-Ryung Uh: for instruction cache
     _cost = 0;          // Adrian Perez
 }
 
 /* ===================================================================== */
-/*!
- *  @brief Stats output method
- */
+/* @brief Stats output method                                            */
 /* ===================================================================== */
-string
-CACHE_BASE::StatsLong(string prefix, CACHE_TYPE cache_type) const
+string CACHE_BASE::StatsLong(string prefix, CACHE_TYPE cache_type) const
 {
     const UINT32 headerWidth = 19;
     const UINT32 numberWidth = 12;
 
     string out;
-
     out += prefix + _name + "\n";
 
-    if (cache_type != CACHE_TYPE_ICACHE) {
-
-        for (UINT32 i = 0; i < ACCESS_TYPE_NUM; i++)
-        {
-            const ACCESS_TYPE accessType = ACCESS_TYPE(i);
-
-            std::string type(accessType == ACCESS_TYPE_LOAD ? "Load" : "Store");
-
-            out += prefix + ljstr(type + "-Hits:                ", headerWidth)
-                          + mydecstr(Hits(accessType), numberWidth)
-                          + "  "
-                          + fltstr(100.0 * Hits(accessType) / Accesses(accessType), 2, 6)
-                          + "%\n";
-
-            out += prefix + ljstr(type + "-Misses:              ", headerWidth)
-                          + mydecstr(Misses(accessType), numberWidth)
-                          + "  "
-                          + fltstr(100.0 * Misses(accessType) / Accesses(accessType), 2, 6)
-                          + "%\n";
-
-            out += prefix + ljstr(type + "-Coherence Misses:    ", headerWidth)
-                          + mydecstr(CoherenceMisses(accessType), numberWidth)
-                          + "  "
-                          + fltstr(100.0 * CoherenceMisses(accessType) / Accesses(accessType), 2, 6)
-                          + "%\n";
-
-            out += prefix + ljstr(type + "-Accesses:            ", headerWidth)
-                          + mydecstr(Accesses(accessType), numberWidth)
-                          + "  "
-                          + fltstr(100.0 * Accesses(accessType) / Accesses(accessType), 2, 6)
-                          + "%\n";
-
-            out += prefix + "\n";
-        }
-
-        out += prefix + ljstr("Total-Hits:            ", headerWidth)
-                      + mydecstr(Hits(), numberWidth)
-                      + "  "
-                      + fltstr(100.0 * Hits() / Accesses(), 2, 6)
-                      + "%\n";
-
-        out += prefix + ljstr("Total-Misses:          ", headerWidth)
-                      + mydecstr(Misses(), numberWidth)
-                      + "  "
-                      + fltstr(100.0 * Misses() / Accesses(), 2, 6)
-                      + "%\n";
-
-        out += prefix + ljstr("Total-Accesses:        ", headerWidth)
-                      + mydecstr(Accesses(), numberWidth)
-                      + "  "
-                      + fltstr(100.0 * Accesses() / Accesses(), 2, 6)
-                      + "%\n";
-
-        out += "\n";
-
-        out += prefix + ljstr("Estimated Cost:        ", headerWidth)
-                      + mydecstr(Cost(), numberWidth)
-                      + " Cycles\n";
-
-        out += "\n";
-
-    }
-    else
+    for (UINT32 i = 0; i < ACCESS_TYPE_NUM; i++)
     {
-        // Instruction cache
-        out += prefix + ljstr("Total-Hits:                      ", headerWidth)
-                      + mydecstr(IHits(), numberWidth)
+        const ACCESS_TYPE accessType = ACCESS_TYPE(i);
+
+        std::string type(accessType == ACCESS_TYPE_LOAD ? "Load" : "Store");
+
+        out += prefix + ljstr(type + "-Hits:                ", headerWidth)
+                      + mydecstr(Hits(accessType), numberWidth)
                       + "  "
-                      + fltstr(100.0 * IHits() / IAccesses(), 2, 6)
+                      + fltstr(100.0 * Hits(accessType) / Accesses(accessType), 2, 6)
                       + "%\n";
 
-        out += prefix + ljstr("Total-Misses:                   ", headerWidth)
-                      + mydecstr(IMisses(), numberWidth)
+        out += prefix + ljstr(type + "-Misses:              ", headerWidth)
+                      + mydecstr(Misses(accessType), numberWidth)
                       + "  "
-                      + fltstr(100.0 * IMisses() / IAccesses(), 2, 6)
+                      + fltstr(100.0 * Misses(accessType) / Accesses(accessType), 2, 6)
                       + "%\n";
 
-        out += prefix + ljstr("Total-Coherence Misses:         ", headerWidth)
-                      + mydecstr(ICoherenceMisses(), numberWidth)
+        out += prefix + ljstr(type + "-Coherence Misses:    ", headerWidth)
+                      + mydecstr(CoherenceMisses(accessType), numberWidth)
                       + "  "
-                      + fltstr(100.0 * ICoherenceMisses() / IAccesses(), 2, 6)
+                      + fltstr(100.0 * CoherenceMisses(accessType) / Accesses(accessType), 2, 6)
                       + "%\n";
 
-        out += prefix + ljstr("Total-Accesses:                ", headerWidth)
-                      + mydecstr(IAccesses(), numberWidth)
+        out += prefix + ljstr(type + "-Accesses:            ", headerWidth)
+                      + mydecstr(Accesses(accessType), numberWidth)
                       + "  "
-                      + fltstr(100.0 * IAccesses() / IAccesses(), 2, 6)
+                      + fltstr(100.0 * Accesses(accessType) / Accesses(accessType), 2, 6)
                       + "%\n";
 
-        out += "\n";
-
-        out += prefix + ljstr("Estimated Cost:       ", headerWidth)
-                      + mydecstr(Cost(), numberWidth)
-                      + "  "
-                      + fltstr(100.0 * Accesses() / Accesses(), 2, 6)
-                      + " Cycles\n";
-        out += "\n";
+        out += prefix + "\n";
     }
+
+    out += prefix + ljstr("Total-Hits:            ", headerWidth)
+                  + mydecstr(Hits(), numberWidth)
+                  + "  "
+                  + fltstr(100.0 * Hits() / Accesses(), 2, 6)
+                  + "%\n";
+
+    out += prefix + ljstr("Total-Misses:          ", headerWidth)
+                  + mydecstr(Misses(), numberWidth)
+                  + "  "
+                  + fltstr(100.0 * Misses() / Accesses(), 2, 6)
+                  + "%\n";
+
+    out += prefix + ljstr("Total-Accesses:        ", headerWidth)
+                  + mydecstr(Accesses(), numberWidth)
+                  + "  "
+                  + fltstr(100.0 * Accesses() / Accesses(), 2, 6)
+                  + "%\n";
+
+    out += "\n";
+
+    out += prefix + ljstr("Estimated Cost:        ", headerWidth)
+                  + mydecstr(Cost(), numberWidth)
+                  + " Cycles\n";
+
+    out += "\n";
+
     return out;
 }
 
@@ -600,12 +526,10 @@ class CACHE : public CACHE_BASE
     /// Cache access from addr to addr+size-1
     HIT_MISS_TYPES Load(ADDRINT addr, UINT32 size);
     HIT_MISS_TYPES Store(ADDRINT addr, UINT32 size);
-    HIT_MISS_TYPES Fetch(ADDRINT addr, UINT32 size);
 
     /// Cache access at addr that does not span cache lines
     HIT_MISS_TYPES LoadSingleLine(ADDRINT addr);
     HIT_MISS_TYPES StoreSingleLine(ADDRINT addr);
-    HIT_MISS_TYPES FetchSingleLine(ADDRINT addr);
 
     /// Return the Cache Line in set
     SET *getSET(CACHE_TAG tag);
@@ -715,56 +639,6 @@ HIT_MISS_TYPES CACHE<SET>::StoreSingleLine(ADDRINT addr)
     SET & set = _sets[setIndex];
     HIT_MISS_TYPES hit = coherence->processWrite(&set, tag, &cost);
     _access[ACCESS_TYPE_STORE][hit]++;
-    _cost += cost;
-    return hit;
-}
-
-/* ===================================================================== */
-/*!
- *  @return true if accessed instruction cache line hits
- */
-/* ===================================================================== */
-template <class SET>
-HIT_MISS_TYPES CACHE<SET>::Fetch(ADDRINT addr, UINT32 size)
-{
-    const ADDRINT highAddr = addr + size;
-    HIT_MISS_TYPES allHit = CACHE_HIT;
-    const ADDRINT lineSize = LineSize();
-    const ADDRINT notLineMask = ~(lineSize - 1);
-    INT32 cost;
-
-    do
-    {
-        CACHE_TAG tag;
-        UINT32 setIndex;
-        SplitAddress(addr, tag, setIndex);
-        SET & set = _sets[setIndex];
-	      HIT_MISS_TYPES localHit = coherence->processRead(&set, tag, &cost);
-        allHit = localHit;
-        addr = (addr & notLineMask) + lineSize;   // start of next cache line
-    }
-    while (addr < highAddr);
-
-    _fetch[allHit]++;
-    _cost += cost;
-    return allHit;
-}
-
-/* ===================================================================== */
-/*!
- *  @return true if accessed instruction cache line hits
- */
-/* ===================================================================== */
-template <class SET>
-HIT_MISS_TYPES CACHE<SET>::FetchSingleLine(ADDRINT addr)
-{
-    INT32 cost;
-    CACHE_TAG tag;
-    UINT32 setIndex;
-    SplitAddress(addr, tag, setIndex);
-    SET  &set = _sets[setIndex];
-    HIT_MISS_TYPES hit = coherence->processRead(&set, tag, &cost);
-    _fetch[hit]++;
     _cost += cost;
     return hit;
 }

@@ -72,8 +72,8 @@ SANITY_SUBSET := $(TEST_TOOL_ROOTS) $(TEST_ROOTS)
 
 TOOL_CXXFLAGS += -DPIN
 TOOL_CXXFLAGS += -Wno-error
-TOOL_LDFLAGS += -pthread
 TOOL_CXXFLAGS += -std=c++11
+TOOL_LDFLAGS += -pthread
 
 
 $(OBJDIR)callbacks$(OBJ_SUFFIX) : callbacks.cpp

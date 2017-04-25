@@ -42,11 +42,6 @@ INT32 totalBitsToShift;
 INT32 processorsMask;
 UINT32 pow2processors;
 
-#if defined (__DEBUG__)                           // <3>
-#include <set>
-set<UINT32> DataAddrs;
-#endif
-
 int lock_id = 1;
 PIN_LOCK mapLock;
 
@@ -68,10 +63,6 @@ UINT32 getPID(UINT32 tid)
 
 VOID CacheLoad(UINT32 tid, ADDRINT addr)
 {
-#if defined (__DEBUG__)
-    if (DataAddrs.find(addr) == DataAddrs.end()) {return;}
-#endif
-
     PIN_GetLock(&mapLock, lock_id++);
     HIT_MISS_TYPES dl1Hit = p_array[getPID(tid)]->LoadSingleLine(addr);
     IncreaseLoad(addr);
@@ -82,10 +73,6 @@ VOID CacheLoad(UINT32 tid, ADDRINT addr)
 
 VOID CacheStore(UINT32 tid, ADDRINT addr)
 {
-#if defined (__DEBUG__)
-    if (DataAddrs.find(addr) == DataAddrs.end()) {return;}
-#endif
-
     PIN_GetLock(&mapLock, lock_id++);
     HIT_MISS_TYPES dl1Hit = p_array[getPID(tid)]->StoreSingleLine(addr);
     IncreaseStore(addr);

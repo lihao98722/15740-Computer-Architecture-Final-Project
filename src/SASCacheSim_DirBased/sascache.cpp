@@ -43,10 +43,6 @@ KNOB<UINT64> KnobInstructionCount(KNOB_MODE_WRITEONCE,
                                   "l","5000000000000",
                                   "specify the number of instructions to profile");
 
-#if defined (__DEBUG__)
-LOCALVAR set<string,greater<string> > CheckRtns;
-#endif
-
 /* ===================================================================== */
 /* Cache configurations and other simulation parameters                  */
 /* ===================================================================== */
@@ -167,7 +163,7 @@ LOCALFUN VOID init_configuration()
 /* ===================================================================== */
 LOCALFUN VOID Initialization()
 {
-    if (((config = fopen( (KnobConfigFile.Value()).c_str(), "r" )) == NULL))
+    if (((config = fopen((KnobConfigFile.Value()).c_str(), "r" )) == NULL))
     {
         cerr << "Cannot open configuration file : " << KnobConfigFile.Value() << "\n";
         Usage();
@@ -237,11 +233,6 @@ VOID Fini(int code, VOID * v)
 /* ===================================================================== */
 int main(int argc, char *argv[])
 {
-
-#if defined (__DEBUG__)
-    extern set<UINT32> DataAddrs;
-#endif
-
     PIN_InitSymbols();
 
     if( PIN_Init(argc,argv) )
