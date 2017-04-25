@@ -62,7 +62,7 @@ static inline INT32 CeilLog2(UINT32 n)
 
 typedef enum
 {
-    CACHE_MISS,
+    CACHE_MISS = 0,
     CACHE_HIT,
     COHERENCE_MISS,
     HIT_MISS_TYPES_NUM
@@ -201,6 +201,7 @@ class TAG_MEMORY
 /*  @brief Generic cache base class;                                     */
 /*  no allocate specialization, no cache set specialization              */
 /* ===================================================================== */
+const UINT32   HIT_MISS_NUM = 3;
 class CACHE_BASE
 {
   public:
@@ -212,8 +213,8 @@ class CACHE_BASE
     } ACCESS_TYPE;
 
   protected:
-    static const UINT32   HIT_MISS_NUM = 3;
     UINT64                _access[ACCESS_TYPE_NUM][HIT_MISS_NUM];
+    UINT64                _cycle[ACCESS_TYPE_NUM][HIT_MISS_NUM];
     UINT64                _cost;
 
   private:
@@ -237,6 +238,18 @@ class CACHE_BASE
         }
         return sum;
     }
+
+    UINT64 SumCycle(HIT_MISS_TYPES type) const
+    {
+        UINT64 sum = 0;
+
+        for (UINT32 accessType = 0; accessType < ACCESS_TYPE_NUM; accessType++)
+        {
+            sum += _cycle[accessType][type];
+        }
+        return sum;
+    }
+
 
   protected:
     UINT32 NumSets() const {
@@ -263,9 +276,44 @@ class CACHE_BASE
             _access[accessType][CACHE_HIT] = 0;
             _access[accessType][CACHE_MISS] = 0;
             _access[accessType][COHERENCE_MISS] = 0;
+
+            _cycle[accessType][CACHE_HIT] = 0;
+            _cycle[accessType][CACHE_MISS] = 0;
+            _cycle[accessType][COHERENCE_MISS] = 0;
         }
 
         _cost = 0;
+    }
+
+    /* ===================================================================== */
+    inline UINT64 HitCycles(ACCESS_TYPE accessType) const {
+        return _cycle[accessType][CACHE_HIT];
+    }
+
+    /* ===================================================================== */
+    inline UINT64 MissCycles(ACCESS_TYPE accessType) const {
+        return _cycle[accessType][CACHE_MISS];
+    }
+
+    /* ===================================================================== */
+    inline UINT64 CoherenceMissCycles(ACCESS_TYPE accessType) const {
+        return _cycle[accessType][COHERENCE_MISS];
+    }
+
+    /* ===================================================================== */
+    inline UINT64 TotalCycles(ACCESS_TYPE accessType) const {
+        return HitCycles(accessType) + MissCycles(accessType) + CoherenceMissCycles(accessType);
+    }
+
+    /* ===================================================================== */
+    inline UINT64 TotalHitCycles() const {
+        return SumCycle(CACHE_HIT);
+
+    }
+
+    /* ===================================================================== */
+    inline UINT64 TotalMissCycles() const {
+        return SumCycle(CACHE_MISS) + SumCycle(COHERENCE_MISS);
     }
 
     /* ===================================================================== */
@@ -329,6 +377,11 @@ class CACHE_BASE
     {
         std::stringstream out;
         out << prefix << _name << "\n";
+        out << prefix << std::setw(25) << std::left << " "
+                      << std::setw(15) << std::left << "Count"
+                      << std::setw(15) << std::left << "%"
+                      << std::setw(15) << std::left << "Cycles"
+                      << std::setw(10) << std::left << "%" << '\n';
 
         for (UINT32 i = 0; i < ACCESS_TYPE_NUM; i++)
         {
@@ -338,41 +391,46 @@ class CACHE_BASE
 
             out << prefix << std::setw(25) << std::left << (type + "-Hits")
                           << std::setw(15) << std::left << Hits(accessType)
-                          << std::setw(10) << std::left << (100.0 * Hits(accessType) / Accesses(accessType))  << "%"
-                          << "\n";
+                          << std::setw(15) << std::left << (100.0 * Hits(accessType) / Accesses(accessType))
+                          << std::setw(15) << std::left << HitCycles(accessType)
+                          << std::setw(10) << std::left <<  (100.0 * HitCycles(accessType) / TotalCycles(accessType))  << "\n";
 
             out << prefix << std::setw(25) << std::left << (type + "-Misses:")
                           << std::setw(15) << std::left << Misses(accessType)
-                          << std::setw(10) << std::left << (100.0 * Misses(accessType) / Accesses(accessType)) << "%"
-                          << "\n";
+                          << std::setw(15) << std::left << (100.0 * Misses(accessType) / Accesses(accessType))
+                          << std::setw(15) << std::left << MissCycles(accessType)
+                          << std::setw(10) << std::left << (100.0 * MissCycles(accessType) / TotalCycles(accessType)) << "\n";
 
             out << prefix << std::setw(25) << std::left << (type + "-Coherence Misses:")
                           << std::setw(15) << std::left << CoherenceMisses(accessType)
-                          << std::setw(10) << std::left << (100.0 * CoherenceMisses(accessType) / Accesses(accessType)) << "%"
-                          << "\n";
+                          << std::setw(15) << std::left << (100.0 * CoherenceMisses(accessType) / Accesses(accessType))
+                          << std::setw(15) << std::left << CoherenceMissCycles(accessType)
+                          << std::setw(10) << std::left << (100.0 * CoherenceMissCycles(accessType) / TotalCycles(accessType)) << "\n";
 
             out << prefix << std::setw(25) << std::left << (type + "-Total Accesses:")
                           << std::setw(15) << std::left << Accesses(accessType)
-                          << "\n\n";
+                          << std::setw(15) << std::left << 100.0
+                          << std::setw(15) << std::left << TotalCycles(accessType)
+                          << std::setw(10) << std::left << 100.0 << "\n\n";
         }
 
         out << prefix << std::setw(25) << std::left << "Total-Hits:"
                       << std::setw(15) << std::left << Hits()
-                      << std::setw(10) << std::left << (100.0 * Hits() / Accesses()) << "%"
-                      << "\n";
+                      << std::setw(15) << std::left << (100.0 * Hits() / Accesses())
+                      << std::setw(15) << std::left << TotalHitCycles()
+                      << std::setw(10) << std::left << (100.0 * TotalHitCycles() / _cost) << "\n";
 
         out << prefix << std::setw(25) << std::left << "Total-Misses:"
                       << std::setw(15) << std::left << Misses()
-                      << std::setw(10) << std::left << (100.0 * Misses() / Accesses()) << "%"
-                      << "\n";
-
-        out << prefix << std::setw(25) << std::left << "Total-Accesses:"
-                      << std::setw(15) << std::left << Accesses()
-                      << "\n\n";
+                      << std::setw(15) << std::left << (100.0 * Misses() / Accesses())
+                      << std::setw(15) << std::left << TotalMissCycles()
+                      << std::setw(10) << std::left << (100.0 * TotalMissCycles() / _cost) << "\n\n";
 
         out << prefix << std::setw(25) << std::left << "Estimated Cost:"
-                      << std::setw(15) << std::left << _cost << "Cycles"
-                      << "\n\n";
+                      << std::setw(15) << std::left << Accesses()
+                      << std::setw(15) << std::left << 100.0
+                      << std::setw(15) << std::left << _cost
+                      << std::setw(10) << std::left << 100.0 << "\n\n";
 
         return out.str();
     }
@@ -449,6 +507,7 @@ class CACHE : public CACHE_BASE
         SET & set = _sets[setIndex];
         HIT_MISS_TYPES hit = coherence->processWrite(&set, tag, &cost);
         _access[ACCESS_TYPE_STORE][hit]++;
+        _cycle[ACCESS_TYPE_STORE][hit] += cost;
         _cost += cost;
     }
 
@@ -464,6 +523,7 @@ class CACHE : public CACHE_BASE
         SET & set = _sets[setIndex];
         HIT_MISS_TYPES hit = coherence->processRead(&set, tag, &cost);
         _access[ACCESS_TYPE_LOAD][hit]++;
+        _cycle[ACCESS_TYPE_LOAD][hit] += cost;
         _cost += cost;
     }
 

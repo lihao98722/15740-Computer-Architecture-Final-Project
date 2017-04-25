@@ -5,16 +5,6 @@
 #
 ##############################################################
 
-
-# Environment variable to enable or disable code which demonstrates the behavior change
-# in Xcode 7 / Clang 3.7, introduced by DR1467 and described here:
-# https://llvm.org/bugs/show_bug.cgi?id=23812
-# Defaults to on in order to act as a warning to anyone who's unaware of the issue.
-ifneq ($(JSON11_ENABLE_DR1467_CANARY),)
-CANARY_ARGS = -DJSON11_ENABLE_DR1467_CANARY=$(JSON11_ENABLE_DR1467_CANARY)
-endif
-
-
 ##############################################################
 #
 # Test targets
@@ -71,9 +61,6 @@ SANITY_SUBSET := $(TEST_TOOL_ROOTS) $(TEST_ROOTS)
 # This section contains recipes for tests other than the default.
 # See makefile.default.rules for the default test rules.
 # All tests in this section should adhere to the naming convention: <testname>.test
-
-
-
 
 ##############################################################
 #

@@ -27,8 +27,8 @@ static inline void local_irq_disable()
 
 void produce()
 {
-    local_irq_disable();
-    std::this_thread::sleep_for(std::chrono::milliseconds(SYNC));
+    // local_irq_disable();
+    // std::this_thread::sleep_for(std::chrono::milliseconds(SYNC));
 
     for (DATA_T i = 0; i <= ROUND; ++i)
     {
@@ -44,8 +44,8 @@ void produce()
 
 void consume()
 {
-    local_irq_disable();
-    std::this_thread::sleep_for(std::chrono::milliseconds(SYNC));
+    // local_irq_disable();
+    // std::this_thread::sleep_for(std::chrono::milliseconds(SYNC));
     volatile DATA_T reader = 1;
 
     for (int i = 0; i < ROUND; ++i)
@@ -76,8 +76,6 @@ int main()
     std::vector<std::thread> ths(nthreads);
 
     std::cout << "Memory Addr: " << std::hex << &data << std::endl;
-
-    std::cout << "Launching " << nthreads << " threads" << std::endl;
 
     ths[0] = std::thread{produce};
     pin(0, ths[0]);
