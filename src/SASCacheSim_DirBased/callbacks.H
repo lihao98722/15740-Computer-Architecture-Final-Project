@@ -1,16 +1,9 @@
-//
 // @ORIGINAL_AUTHOR: Gang-Ryung Uh
-//
 
-/*! @file
- *  This header file contains definition for callback routines
- */
+#pragma once
 
-#ifndef _CALLBACKS__H_
-#define _CALLBACKS__H_
-
-#include "pin.H"
 #include <unordered_map>
+#include "pin.H"
 
 
 #define THREAD_ATTACH   1
@@ -88,12 +81,11 @@ typedef struct
 
 VOID CacheLoad(UINT32 tid, ADDRINT addr);
 VOID CacheStore(UINT32 tid, ADDRINT addr);
-VOID Fini(int code, VOID * v);
-VOID SMPMain(int reason);
-
+VOID ProcessAttach();
+VOID ProcessDetach();
+VOID ThreadAttach();
+VOID ThreadDetach();
 
 void IncreaseLoad(ADDRINT addr);
 void IncreaseStore(ADDRINT addr);
 std::string StatToString();
-
-#endif // _CALLBACKS__H_

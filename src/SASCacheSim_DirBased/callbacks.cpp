@@ -125,13 +125,14 @@ inline UINT32 get_next_pid()
     return nextPID == pow2processors ? 0 : nextPID++;
 }
 /* ===================================================================== */
-VOID Fini()
+VOID ProcessDetach()
 {
+    unsetProcessorsArray(pow2processors);
     std::ofstream out(KnobOutputFile.Value().c_str());
     // Skip main process, starting from thread 1 since thread0 is the main application
     for (auto i = 1; i < catch_all_config.total_processors; ++i)
     {
-        out << p_array[i]->StatsLong("+ " , CACHE_BASE::CACHE_TYPE_DCACHE) << endl;
+        out << p_array[i]->StatsLong("+ ") << endl;
     }
     if (catch_all_config.track_loads || catch_all_config.track_stores)
     {
@@ -140,45 +141,32 @@ VOID Fini()
 
     out.close();
 }
-
-// Debug
-UINT32 temp_tid = 0;
-UINT32 temp_pid = 0;
 /* ===================================================================== */
-VOID SMPMain(int reason)
+VOID ProcessAttach()
 {
-    UINT32 tid;
-    string s;
+    totalBitsToShift = 16 - FloorLog2(l1_config.line_size);
+    pow2processors = 1 << CeilLog2(catch_all_config.total_processors);
+    processorsMask = pow2processors-1;
 
-    switch (reason)
+    // Creates Processors
+    setProcessorsArray(pow2processors);
+}
+/* ===================================================================== */
+VOID ThreadAttach()
+{
+    auto temp_tid = get_current_tid();
+    auto temp_pid = get_next_pid();
+    std::cout << "tid " << temp_tid << " -> " << "pid " << temp_pid << std::endl;
+    (VOID)t_map.insert(std::pair<UINT32, UINT32>(temp_tid, temp_pid));
+}
+
+VOID ThreadDetach()
+{
+    auto tid = get_current_tid();
+    std::map<UINT32, UINT32>::iterator t_map_it = t_map.find(tid);
+    if (t_map_it != t_map.end())
     {
-      case PROCESS_ATTACH:
-        totalBitsToShift = 16 - FloorLog2(l1_config.line_size);
-        pow2processors = 1 << CeilLog2(catch_all_config.total_processors);
-        processorsMask = pow2processors-1;
-        setProcessorsArray(pow2processors);    // Creates Processors
-        break;
-
-      case PROCESS_DETACH:
-        unsetProcessorsArray(pow2processors);
-        Fini();
-        break;
-
-      case THREAD_ATTACH:
-        temp_tid = get_current_tid();
-        temp_pid = get_next_pid();
-        std::cout << "tid " << temp_tid << " -> " << "pid " << temp_pid << std::endl;
-        (VOID)t_map.insert(std::pair<UINT32, UINT32>(temp_tid, temp_pid));
-        break;
-
-      case THREAD_DETACH:
-        tid = get_current_tid();
-        std::map<UINT32, UINT32>::iterator t_map_it = t_map.find(tid);
-        if (t_map_it != t_map.end())
-        {
-            (VOID)t_map.erase(t_map_it);
-        }
-        break;
+        (VOID)t_map.erase(t_map_it);
     }
 }
 

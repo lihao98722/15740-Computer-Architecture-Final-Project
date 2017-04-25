@@ -8,14 +8,17 @@
  *  This file contains an ISA-portable cache simulator
  */
 
-#include "pin.H"
-#include "callbacks.H"
 #include <assert.h>
 #include <cstdio>
-#include <sstream>
 #include <iostream>
 #include <fstream>
+#include <sstream>
+#include <iomanip>
 #include <set>
+
+#include "pin.H"
+#include "callbacks.H"
+
 
 /* ===================================================================== */
 /* Commandline Switches                                                  */
@@ -53,13 +56,9 @@ SIMULATION_CONFIG catch_all_config;
 /* ===================================================================== */
 INT32 Usage()
 {
-    cerr <<
-        "This tool represents a cache simulator.\n"
-        "\n";
-
-    cerr << KNOB_BASE::StringKnobSummary();
-
-    cerr << endl;
+    cerr << "This tool represents a cache simulator.\n\n"
+         << KNOB_BASE::StringKnobSummary()
+         << '\n';
 
     return -1;
 }
@@ -83,42 +82,32 @@ std::string cache_config_string(CACHE_CONFIG cache)
         "NONE"
     };
 
-    std::string out;
-    out += "      number of set: " + decstr(cache.num_sets, 1)        + "\n" +
-           "      associativity: " + decstr(cache.set_size, 1)        + "\n" +
-           "          line size: " + decstr(cache.line_size, 1)       + "\n" +
-           "     write_strategy: " + write_string[cache.write]        + "\n" +
-           "          coherence: " + coherence_string[cache.coherence]    + "\n" +
-           "       interconnect: " + "Directory" + "\n";
+    std::stringstream out;
+    out << std::setw(20) << "number of set: "   << cache.num_sets                    << "\n"
+        << std::setw(20) << "associativity: "   << cache.set_size                    << "\n"
+        << std::setw(20) << "line size: "       << cache.line_size                   << "\n"
+        << std::setw(20) << "write_strategy: "  << write_string[cache.write]         << "\n"
+        << std::setw(20) << "coherence: "       << coherence_string[cache.coherence] << "\n"
+        << std::setw(20) << "interconnect: "    << "Directory"                       << "\n";
 
-    return out;
+    return out.str();
 }
 
 /* ===================================================================== */
 std::string config_string()
 {
-    std::string out;
+    std::stringstream out;
 
-    out += "L1:\n";
-    out += cache_config_string(l1_config);
+    out << "L1:\n" << cache_config_string(l1_config) << '\n'
+        << std::setw(20) << "Simulate I cache: "     << catch_all_config.simulate_inst_cache << "\n"
+        << std::setw(20) << "Track Instructions: "   << catch_all_config.track_insts         << "\n"
+        << std::setw(20) << "Track loads: "          << catch_all_config.track_loads         << "\n"
+        << std::setw(20) << "Track stores: "         << catch_all_config.track_stores        << "\n"
+        << std::setw(20) << "Threshold_hit: "        << catch_all_config.threshold_hit       << "\n"
+        << std::setw(20) << "Threshold_miss: "       << catch_all_config.threshold_miss      << "\n"
+        << std::setw(20) << "Total Processors: "     << catch_all_config.total_processors    << "\n";
 
-    // other configuration parameters
-    out += "\n    Simulate I cache:    " +
-           decstr(catch_all_config.simulate_inst_cache) + "\n" +
-             "    Track Instructions:  " +
-           decstr(catch_all_config.track_insts)      + "\n" +
-           "    Track loads:         " +
-           decstr(catch_all_config.track_loads)      + "\n" +
-             "    Track stores:        " +
-           decstr(catch_all_config.track_stores)     + "\n" +
-             "    Threshold_hit:       "  +
-           decstr(catch_all_config.threshold_hit)  + "\n" +
-             "    Threshold_miss:      " +
-           decstr(catch_all_config.threshold_miss) + "\n" +
-             "    Total Processors:       " +
-           decstr(catch_all_config.total_processors) + "\n";
-
-    return out;
+    return out.str();
 }
 
 /********************************************
@@ -128,7 +117,6 @@ std::string config_string()
       2: Modified-Exclusive-Shared-Invalid
       3: Dragon
 *********************************************/
-/* ===================================================================== */
 LOCALFUN VOID init_configuration()
 {
     /* L1 cache config */
@@ -215,19 +203,19 @@ VOID Instruction(INS ins, VOID *v)
 /* ===================================================================== */
 VOID ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, VOID *v)
 {
-    SMPMain(THREAD_ATTACH);
+    ThreadAttach();
 }
 
 /* ===================================================================== */
 VOID ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, VOID *v)
 {
-    SMPMain(THREAD_DETACH);
+    ThreadDetach();
 }
 
 /* ===================================================================== */
 VOID Fini(int code, VOID * v)
 {
-    SMPMain(PROCESS_DETACH);
+    ProcessDetach();
 }
 
 /* ===================================================================== */
@@ -235,7 +223,7 @@ int main(int argc, char *argv[])
 {
     PIN_InitSymbols();
 
-    if( PIN_Init(argc,argv) )
+    if(PIN_Init(argc,argv))
     {
         return Usage();
     }
@@ -253,7 +241,7 @@ int main(int argc, char *argv[])
     PIN_AddThreadFiniFunction(ThreadFini, (VOID *) 0);
 
     // Initialize main process
-    SMPMain(PROCESS_ATTACH);
+    ProcessAttach();
 
     // Never returns
     PIN_StartProgram();

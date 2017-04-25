@@ -1,10 +1,10 @@
-#ifndef _COHERENCE_H_
-#define _COHERENCE_H_
+#pragma once
 
 #include <sstream>
 #include <iostream>
 #include <fstream>
 #include <map>
+
 #include "cache.H"
 #include "callbacks.H"
 
@@ -154,14 +154,14 @@ class UPDATE:public COHERENCE<SET,CACHE>
     VOID
     Invalidate(SET *set, CACHE_TAG tag)
     {
-        set->SetState(set->Find(tag),CACHE_STATES::INVALID);
+        set->SetState(set->Find(tag),CACHE_STATE::INVALID);
     }
 
     /* ===================================================================== */
     VOID
     FetchAndInvalidate(SET *set, CACHE_TAG tag)
     {
-        set->SetState(set->Find(tag),CACHE_STATES::INVALID);
+        set->SetState(set->Find(tag),CACHE_STATE::INVALID);
     }
 
     /* ===================================================================== */
@@ -217,16 +217,16 @@ class UPDATE:public COHERENCE<SET,CACHE>
         {
             switch (set->GetState(index)) // Check Cache Line State
             {
-              case CACHE_STATES::VALID:
+              case CACHE_STATE::VALID:
                 result = CACHE_HIT;
                 *cost = COST_HIT;
                 break;
 
-              case CACHE_STATES::INVALID:
+              case CACHE_STATE::INVALID:
                 result = COHERENCE_MISS;
                 *cost = COST_LOCAL_MISS;
                 *cost += this->dirTransaction(READ_MISS, tag, destination);
-                set->SetState(index,CACHE_STATES::VALID);
+                set->SetState(index,CACHE_STATE::VALID);
                 break;
 
               default:
@@ -238,7 +238,7 @@ class UPDATE:public COHERENCE<SET,CACHE>
             *cost = COST_BLOCK_TRANSFER;
             *cost += this->dirTransaction(READ_MISS, tag, destination);
             INT32 newIndex = set->Replace(tag);
-            set->SetState(newIndex,CACHE_STATES::VALID);
+            set->SetState(newIndex,CACHE_STATE::VALID);
         }
         return result;
     }
@@ -256,13 +256,13 @@ class UPDATE:public COHERENCE<SET,CACHE>
         {
             switch (set->GetState(index)) // Check Cache Line State
             {
-              case CACHE_STATES::VALID:
+              case CACHE_STATE::VALID:
                 result = CACHE_HIT;
                 *cost = COST_HIT;
                 this->dirTransaction(WRITE_MISS, tag, destination);
                 break; // No State Change No Bus Action Needed
 
-              case CACHE_STATES::INVALID:
+              case CACHE_STATE::INVALID:
                 *cost = COST_REMOTE_MISS;
                 result= COHERENCE_MISS;
                 this->dirTransaction(WRITE_MISS, tag, destination);
@@ -307,21 +307,21 @@ HIT_MISS_TYPES DIR_MSI<SET,CACHE>::processRead(SET *set, CACHE_TAG tag, INT32 *c
     UINT32 destination = getHomeNode(tag);
     HIT_MISS_TYPES result = CACHE_MISS;
     INT32 index = set->Find(tag);
-    if (index >= 0) // Tag Found
+    if (index >= 0)   // Tag Found
     {
         switch (set->GetState(index)) // Check Cache Line State
         {
-          case CACHE_STATES::MODIFIED:
-          case CACHE_STATES::SHARED:
+          case CACHE_STATE::MODIFIED:
+          case CACHE_STATE::SHARED:
             result = CACHE_HIT;
             *cost = COST_HIT;
             break; // No State Change or Bus Action Required in these two cases
 
-          case CACHE_STATES::INVALID:
+          case CACHE_STATE::INVALID:
             result = COHERENCE_MISS;
             *cost = COST_LOCAL_MISS;
             *cost += this->dirTransaction(READ_MISS, tag, destination);
-            set->SetState(index,CACHE_STATES::SHARED);
+            set->SetState(index,CACHE_STATE::SHARED);
             break;
 
           default:
@@ -333,7 +333,7 @@ HIT_MISS_TYPES DIR_MSI<SET,CACHE>::processRead(SET *set, CACHE_TAG tag, INT32 *c
         *cost = COST_BLOCK_TRANSFER;
         *cost += this->dirTransaction(READ_MISS, tag, destination);
         INT32 newIndex = set->Replace(tag);
-        set->SetState(newIndex,CACHE_STATES::SHARED);
+        set->SetState(newIndex,CACHE_STATE::SHARED);
     }
     return result;
 };
@@ -349,23 +349,23 @@ HIT_MISS_TYPES DIR_MSI<SET,CACHE>::processWrite(SET *set, CACHE_TAG tag, INT32 *
     {
         switch (set->GetState(index)) // Check Cache Line State
         {
-          case CACHE_STATES::MODIFIED:
+          case CACHE_STATE::MODIFIED:
             result = CACHE_HIT;
             *cost = COST_HIT;
             break; // No State Change No Bus Action Needed
 
-          case CACHE_STATES::SHARED:
+          case CACHE_STATE::SHARED:
             result = CACHE_HIT;
             *cost = COST_REMOTE_MISS;
             this->dirTransaction(WRITE_MISS, tag, destination);
-            set->SetState(index,CACHE_STATES::MODIFIED);
+            set->SetState(index,CACHE_STATE::MODIFIED);
             break;
 
-          case CACHE_STATES::INVALID:
+          case CACHE_STATE::INVALID:
             *cost = COST_REMOTE_MISS;
             result= COHERENCE_MISS;
             this->dirTransaction(WRITE_MISS, tag, destination);
-            set->SetState(index,CACHE_STATES::MODIFIED);
+            set->SetState(index,CACHE_STATE::MODIFIED);
             break;
 
           default:
@@ -377,7 +377,7 @@ HIT_MISS_TYPES DIR_MSI<SET,CACHE>::processWrite(SET *set, CACHE_TAG tag, INT32 *
         *cost = COST_BLOCK_TRANSFER;
         set->Replace(tag);
         this->dirTransaction(WRITE_MISS, tag, destination);
-        set->SetState(index,CACHE_STATES::MODIFIED);
+        set->SetState(index,CACHE_STATE::MODIFIED);
     }
     return result;
 }
@@ -413,19 +413,19 @@ VOID DIR_MSI<SET,CACHE>::DataWriteBack()
 template <class SET, class CACHE>
 VOID DIR_MSI<SET,CACHE>::Fetch(SET *set, CACHE_TAG tag)
 {
-    set->SetState(set->Find(tag),CACHE_STATES::SHARED);
+    set->SetState(set->Find(tag),CACHE_STATE::SHARED);
 }
 /* ===================================================================== */
 template <class SET, class CACHE>
 VOID DIR_MSI<SET,CACHE>::FetchAndInvalidate(SET *set, CACHE_TAG tag)
 {
-    set->SetState(set->Find(tag),CACHE_STATES::INVALID);
+    set->SetState(set->Find(tag),CACHE_STATE::INVALID);
 }
 /* ===================================================================== */
 template <class SET, class CACHE>
 VOID DIR_MSI<SET,CACHE>::Invalidate(SET *set, CACHE_TAG tag)
 {
-    set->SetState(set->Find(tag),CACHE_STATES::INVALID);
+    set->SetState(set->Find(tag),CACHE_STATE::INVALID);
 }
 
 /* ===================================================================== */
@@ -452,5 +452,3 @@ VOID DIR_MSI<SET,CACHE>::WriteMiss(CACHE_TAG tag, UINT32 localNode)
     }
     dirPtr->presenceBits = 1 << localNode;
 }
-
-#endif // _COHERENCE_H_
