@@ -14,6 +14,7 @@
 #include <fstream>
 #include <list>
 #include <unordered_map>
+#include <map>
 #include <vector>
 
 extern KNOB<string> KnobOutputFile;
