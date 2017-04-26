@@ -13,12 +13,12 @@ std::mutex iomutex;
 
 #endif
 
-#define DATA_T uint64_t
-const DATA_T ROUND = 1e5;
+#define DATA_T uint32_t
+const DATA_T ROUND = 1e8;
 const int SYNC = 1000;
 
 std::mutex mx;
-DATA_T data = 0;
+DATA_T *data = nullptr;
 
 static inline void local_irq_disable()
 {
@@ -33,7 +33,7 @@ void produce()
     for (DATA_T i = 0; i <= ROUND; ++i)
     {
         std::lock_guard<std::mutex> lock{mx};
-        data = i;
+        *data = i;
     }
 
     #ifdef DEBUG
@@ -51,7 +51,7 @@ void consume()
     for (int i = 0; i < ROUND; ++i)
     {
         std::lock_guard<std::mutex> lock{mx};
-        reader = data;
+        reader = *data;
     }
 
     #ifdef DEBUG
@@ -74,8 +74,8 @@ int main()
     // int nthreads = static_cast<int>(std::thread::hardware_concurrency() / 2 - 1);
     int nthreads = 3;
     std::vector<std::thread> ths(nthreads);
-
-    std::cout << "Memory Addr: " << std::hex << &data << std::endl;
+    data = new DATA_T(10086);
+    std::cout << "Memory Addr: " << std::hex << data << std::endl;
 
     ths[0] = std::thread{produce};
     pin(0, ths[0]);
@@ -90,4 +90,5 @@ int main()
     {
         th.join();
     }
+    delete data;
 }
