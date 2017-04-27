@@ -8,13 +8,11 @@
 
 // #define DEBUG
 #ifdef DEBUG
-
 std::mutex iomutex;
-
 #endif
 
-#define DATA_T uint32_t
-const DATA_T ROUND = 1e8;
+using DATA_T = uint32_t;
+const uint32_t ROUND = 1e7;
 const int SYNC = 1000;
 
 std::mutex mx;
@@ -30,7 +28,7 @@ void produce()
     // local_irq_disable();
     // std::this_thread::sleep_for(std::chrono::milliseconds(SYNC));
 
-    for (DATA_T i = 0; i <= ROUND; ++i)
+    for (auto i = 0; i < ROUND; ++i)
     {
         std::lock_guard<std::mutex> lock{mx};
         *data = i;
@@ -48,7 +46,7 @@ void consume()
     // std::this_thread::sleep_for(std::chrono::milliseconds(SYNC));
     volatile DATA_T reader = 1;
 
-    for (int i = 0; i < ROUND; ++i)
+    for (auto i = 0; i < ROUND; ++i)
     {
         std::lock_guard<std::mutex> lock{mx};
         reader = *data;

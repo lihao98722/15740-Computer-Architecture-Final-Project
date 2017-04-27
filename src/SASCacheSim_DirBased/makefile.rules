@@ -69,10 +69,9 @@ SANITY_SUBSET := $(TEST_TOOL_ROOTS) $(TEST_ROOTS)
 ##############################################################
 
 TOOL_CXXFLAGS += -DPIN
-TOOL_CXXFLAGS += -Wno-error
-TOOL_CXXFLAGS += -Wno-deprecated
+TOOL_CXXFLAGS += -Werror
+TOOL_CXXFLAGS += -Wall
 TOOL_CXXFLAGS += -std=c++11
-TOOL_LDFLAGS 	+= -pthread
 
 $(OBJDIR)callbacks$(OBJ_SUFFIX) : callbacks.cpp
 	$(CXX) $(TOOL_CXXFLAGS) $(COMP_OBJ)$@ $<

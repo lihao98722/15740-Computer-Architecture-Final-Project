@@ -54,7 +54,7 @@ CACHE_CONFIG l1_config, l2_config, l3_config;
 SIMULATION_CONFIG catch_all_config;
 
 /* ===================================================================== */
-INT32 Usage()
+INT32 usage()
 {
     cerr << "This tool represents a cache simulator.\n\n"
          << KNOB_BASE::StringKnobSummary()
@@ -117,7 +117,7 @@ std::string config_string()
       2: Modified-Exclusive-Shared-Invalid
       3: Dragon
 *********************************************/
-LOCALFUN VOID init_configuration()
+LOCALFUN void init_configuration()
 {
     /* L1 cache config */
     if (fscanf(config, "L1: %i: %i: %i: %i: %i\n",
@@ -149,12 +149,12 @@ LOCALFUN VOID init_configuration()
 }
 
 /* ===================================================================== */
-LOCALFUN VOID Initialization()
+LOCALFUN void initialization()
 {
     if (((config = fopen((KnobConfigFile.Value()).c_str(), "r" )) == NULL))
     {
         cerr << "Cannot open configuration file : " << KnobConfigFile.Value() << "\n";
-        Usage();
+        usage();
         exit(-1);
     }
 
@@ -167,7 +167,7 @@ LOCALFUN VOID Initialization()
   Called for every read and write
   Learned from https://software.intel.com/sites/landingpage/pintool/docs/76991/Pin/html/index.html#MAddressTrace
  ===================================================================== */
-VOID Instruction(INS ins, VOID *v)
+void Instruction(INS ins, void *v)
 {
     UINT32 memOperands = INS_MemoryOperandCount(ins);
 
@@ -179,7 +179,7 @@ VOID Instruction(INS ins, VOID *v)
             if( catch_all_config.track_loads )
             {
                 INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE, (AFUNPTR) CacheLoad,
+                    ins, IPOINT_BEFORE, (AFUNPTR) cache_load,
                     IARG_THREAD_ID,
                     IARG_MEMORYREAD_EA,
                     IARG_END);
@@ -191,31 +191,31 @@ VOID Instruction(INS ins, VOID *v)
             if( catch_all_config.track_stores )
             {
                 INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE, (AFUNPTR) CacheStore,
+                    ins, IPOINT_BEFORE, (AFUNPTR) cache_store,
                     IARG_THREAD_ID,
                     IARG_MEMORYWRITE_EA,
                     IARG_END);
             }
-        } // End memory write
-    } // End memOp fFor loop
-} // End outer For
-
-/* ===================================================================== */
-VOID ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, VOID *v)
-{
-    ThreadAttach();
+        }
+    }
 }
 
 /* ===================================================================== */
-VOID ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, VOID *v)
+void ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, void *v)
 {
-    ThreadDetach();
+    thread_attach();
 }
 
 /* ===================================================================== */
-VOID Fini(int code, VOID * v)
+void ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, void *v)
 {
-    ProcessDetach();
+    thread_detach();
+}
+
+/* ===================================================================== */
+void Fini(int code, void * v)
+{
+    process_detach();
 }
 
 /* ===================================================================== */
@@ -225,10 +225,10 @@ int main(int argc, char *argv[])
 
     if(PIN_Init(argc,argv))
     {
-        return Usage();
+        return usage();
     }
 
-    Initialization();
+    initialization();
 
     // Register Trace to be called when each instruction is loaded.
     INS_AddInstrumentFunction(Instruction, 0);
@@ -237,11 +237,11 @@ int main(int argc, char *argv[])
     PIN_AddFiniFunction(Fini, 0);
 
     // Register thr_begin/thr_end to be called when a thread begins/ends
-    PIN_AddThreadStartFunction(ThreadStart, (VOID *) 0);
-    PIN_AddThreadFiniFunction(ThreadFini, (VOID *) 0);
+    PIN_AddThreadStartFunction(ThreadStart, (void *) 0);
+    PIN_AddThreadFiniFunction(ThreadFini, (void *) 0);
 
     // Initialize main process
-    ProcessAttach();
+    process_attach();
 
     // Never returns
     PIN_StartProgram();
