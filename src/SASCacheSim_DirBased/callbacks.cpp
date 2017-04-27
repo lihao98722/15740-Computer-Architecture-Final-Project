@@ -19,7 +19,6 @@
 
 extern KNOB<string> KnobOutputFile;
 extern KNOB<BOOL>   KnobNoSharedLibs;
-extern SIMULATION_CONFIG catch_all_config;
 extern CACHE_CONFIG l1_config;
 
 class Stat
@@ -94,8 +93,7 @@ VOID setProcessorsArray(UINT32 totalProcessors)
         CACHE<CACHE_SET::TAG_MEMORY>* ptr1;
 
         ptr1 = new CACHE<CACHE_SET::TAG_MEMORY>
-                     (s1, size, l1_config.line_size, l1_config.set_size, l1_config.write,
-                      l1_config.coherence, l1_config.interconnect, p_array, i);
+                     (s1, size, l1_config.line_size, l1_config.set_size, p_array, i);
         p_array[i] = ptr1;
     }
 
@@ -131,22 +129,17 @@ VOID ProcessDetach()
     unsetProcessorsArray(pow2processors);
     std::ofstream out(KnobOutputFile.Value().c_str());
     // Skip main process, starting from thread 1 since thread0 is the main application
-    for (auto i = 1; i < catch_all_config.total_processors; ++i)
+    for (auto i = 1; i < l1_config.total_processors; ++i)
     {
         out << p_array[i]->StatsLong("+ ") << endl;
     }
-    if (catch_all_config.track_loads || catch_all_config.track_stores)
-    {
-        out << StatToString();
-    }
-
     out.close();
 }
 /* ===================================================================== */
 VOID ProcessAttach()
 {
     totalBitsToShift = 16 - FloorLog2(l1_config.line_size);
-    pow2processors = 1 << CeilLog2(catch_all_config.total_processors);
+    pow2processors = 1 << CeilLog2(l1_config.total_processors);
     processorsMask = pow2processors-1;
 
     // Creates Processors

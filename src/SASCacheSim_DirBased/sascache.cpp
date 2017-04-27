@@ -50,8 +50,7 @@ KNOB<UINT64> KnobInstructionCount(KNOB_MODE_WRITEONCE,
 /* Cache configurations and other simulation parameters                  */
 /* ===================================================================== */
 FILE *config;
-CACHE_CONFIG l1_config, l2_config, l3_config;
-SIMULATION_CONFIG catch_all_config;
+CACHE_CONFIG l1_config;
 
 /* ===================================================================== */
 INT32 Usage()
@@ -59,93 +58,36 @@ INT32 Usage()
     cerr << "This tool represents a cache simulator.\n\n"
          << KNOB_BASE::StringKnobSummary()
          << '\n';
-
     return -1;
 }
 
 /* ===================================================================== */
 std::string cache_config_string(CACHE_CONFIG cache)
 {
-    std::string write_string[] = {
-        "WRITE_THROUGH_NO_ALLOCATE",
-        "WRITE_THROUGH_ALLOCATE",
-        "WRITE_BACK_NO_ALLOCATE",
-        "WRITE_BACK_ALLOCATE",
-        "NONE"
-    };
-
-    std::string coherence_string[] = {
-        "VALID_INVALID",
-        "MSI",
-        "MESI",
-        "DRAGON",
-        "NONE"
-    };
-
     std::stringstream out;
     out << std::setw(20) << "number of set: "   << cache.num_sets                    << "\n"
         << std::setw(20) << "associativity: "   << cache.set_size                    << "\n"
         << std::setw(20) << "line size: "       << cache.line_size                   << "\n"
-        << std::setw(20) << "write_strategy: "  << write_string[cache.write]         << "\n"
-        << std::setw(20) << "coherence: "       << coherence_string[cache.coherence] << "\n"
-        << std::setw(20) << "interconnect: "    << "Directory"                       << "\n";
-
+        << std::setw(20) << "write_strategy: "  << "WRITE_BACK_ALLOCATE"             << "\n"
+        << std::setw(20) << "coherence: "       << "MSI"                             << "\n"
+        << std::setw(20) << "interconnect: "    << "Directory"                       << "\n"
+        << std::setw(20) << "Total Processors: "<< l1_config.total_processors << "\n";
     return out.str();
 }
 
-/* ===================================================================== */
-std::string config_string()
-{
-    std::stringstream out;
 
-    out << "L1:\n" << cache_config_string(l1_config) << '\n'
-        << std::setw(20) << "Simulate I cache: "     << catch_all_config.simulate_inst_cache << "\n"
-        << std::setw(20) << "Track Instructions: "   << catch_all_config.track_insts         << "\n"
-        << std::setw(20) << "Track loads: "          << catch_all_config.track_loads         << "\n"
-        << std::setw(20) << "Track stores: "         << catch_all_config.track_stores        << "\n"
-        << std::setw(20) << "Threshold_hit: "        << catch_all_config.threshold_hit       << "\n"
-        << std::setw(20) << "Threshold_miss: "       << catch_all_config.threshold_miss      << "\n"
-        << std::setw(20) << "Total Processors: "     << catch_all_config.total_processors    << "\n";
-
-    return out.str();
-}
-
-/********************************************
-  Cache Coherence Protocol:
-      0: Valid-Invalid
-      1: Modified-Shared-Invalid
-      2: Modified-Exclusive-Shared-Invalid
-      3: Dragon
-*********************************************/
 LOCALFUN VOID init_configuration()
 {
     /* L1 cache config */
-    if (fscanf(config, "L1: %i: %i: %i: %i: %i\n",
-               &l1_config.num_sets, &l1_config.set_size, &l1_config.line_size,
-               &l1_config.write, &l1_config.coherence) != 5)
+    if (fscanf(config, "L1 Data Cache: #Processors=%i #Sets=%i Associativity=%i LineSize=%i\n",
+               &l1_config.total_processors, &l1_config.num_sets, &l1_config.set_size, &l1_config.line_size) != 4)
     {
         perror("fscanf: cannot access config param for L1 cache");
         exit(-1);
     }
 
     ASSERTX((l1_config.num_sets <= MAX_SETS) && (l1_config.set_size <= MAX_ASSOCIATIVITY));
-
-    /* Other call-all simulation params */
-    if (fscanf(config, "I: %i: TI: %i: TL: %i: TS: %i: H: %i: M: %i: P: %i\n",
-               &catch_all_config.simulate_inst_cache,
-               &catch_all_config.track_insts,
-               &catch_all_config.track_loads,
-               &catch_all_config.track_stores,
-               &catch_all_config.threshold_hit,
-               &catch_all_config.threshold_miss,
-               &catch_all_config.total_processors) != 7)
-    {
-        perror("fscanf: cannot access other catch-all config params");
-        exit(-1);
-    }
-
-    cerr << config_string() << endl;
-
+    cerr << cache_config_string(l1_config) << endl;
 }
 
 /* ===================================================================== */
@@ -157,9 +99,6 @@ LOCALFUN VOID Initialization()
         Usage();
         exit(-1);
     }
-
-    // initialize cache configuration and other simulation modes
-    // based on the specification from the input file
     init_configuration();
 }
 
@@ -176,26 +115,20 @@ VOID Instruction(INS ins, VOID *v)
     {
         if (INS_MemoryOperandIsRead(ins, memOp))
         {
-            if( catch_all_config.track_loads )
-            {
-                INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE, (AFUNPTR) CacheLoad,
-                    IARG_THREAD_ID,
-                    IARG_MEMORYREAD_EA,
-                    IARG_END);
-            }
+            INS_InsertPredicatedCall(
+                ins, IPOINT_BEFORE, (AFUNPTR) CacheLoad,
+                IARG_THREAD_ID,
+                IARG_MEMORYREAD_EA,
+                IARG_END);
         } // End memory read
 
         if (INS_MemoryOperandIsWritten(ins, memOp))
         {
-            if( catch_all_config.track_stores )
-            {
-                INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE, (AFUNPTR) CacheStore,
-                    IARG_THREAD_ID,
-                    IARG_MEMORYWRITE_EA,
-                    IARG_END);
-            }
+            INS_InsertPredicatedCall(
+                ins, IPOINT_BEFORE, (AFUNPTR) CacheStore,
+                IARG_THREAD_ID,
+                IARG_MEMORYWRITE_EA,
+                IARG_END);
         } // End memory write
     } // End memOp fFor loop
 } // End outer For

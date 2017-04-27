@@ -26,7 +26,6 @@ extern UINT32 pow2processors;
 extern int lock_id;
 extern PIN_LOCK mapLock;
 extern UINT32 getHomeNode(CACHE_TAG addr);
-extern SIMULATION_CONFIG catch_all_config;
 extern std::map<CACHE_TAG, DIRECTORY_LINE *> dir_map;
 
 static INT32 COST_HIT = 1;

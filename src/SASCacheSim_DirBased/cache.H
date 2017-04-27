@@ -447,8 +447,6 @@ class CACHE : public CACHE_BASE
 {
   private:
     SET *                   _sets;
-    UINT32                  interconnection;
-    UINT32                  write;
 
   public:
     BOOL                    valid;
@@ -460,9 +458,6 @@ class CACHE : public CACHE_BASE
             UINT32          cacheSize,
             UINT32          lineSize,
             UINT32          associativity,
-            UINT32          coherence_write,
-            UINT32          coherence_protocol,
-            UINT32          interconnection_type,
             CACHE **        map,
             UINT32          pid)
           : CACHE_BASE(name, cacheSize, lineSize, associativity)
@@ -473,21 +468,10 @@ class CACHE : public CACHE_BASE
         {
             _sets[i].SetAssociativity(associativity);
         }
-
+        coherence = new DIR_MSI<SET,CACHE>(map, mypid);
         valid = true;
         mypid = pid;
         mymap = map;
-
-        if (coherence_write == WRITE_BACK_ALLOCATE && coherence_protocol == PROTOCOL_MSI)
-        {
-            coherence = new DIR_MSI<SET,CACHE>(map, mypid);
-        }
-        else
-        {
-            perror("CACHE_BASE: Invalid combination of cache write strategy and coherence protocol");
-            exit(1);
-        }
-        interconnection = interconnection_type;
     }
 
     ~CACHE()
