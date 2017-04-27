@@ -38,34 +38,12 @@ typedef enum
     DIR_ACTIONS_NUM
 } DIR_ACTION;
 
-
-typedef enum
-{
-    PROTOCOL_VI,
-    PROTOCOL_MSI,
-    PROTOCOL_MESI,
-    PROTOCOL_DRAGON,
-    NONE
-} COHERENCE_PROTOCOL;
-
-typedef enum
-{
-    WRITE_THROUGH_NO_ALLOCATE = 0,
-    WRITE_THROUGH_ALLOCATE,
-    WRITE_BACK_NO_ALLOCATE,
-    WRITE_BACK_ALLOCATE,
-    WRITE_NUM
-} WRITE_STRATEGY;
-
-
 typedef struct
 {
     INT32 num_sets;
     INT32 set_size;
     INT32 line_size;
-    INT32 write;
-    INT32 coherence;
-    INT32 interconnect;
+    INT32 total_processors;
 } CACHE_CONFIG;
 
 typedef struct

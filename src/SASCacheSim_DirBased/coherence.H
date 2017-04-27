@@ -25,6 +25,7 @@ extern UINT32 active_threads;
 extern UINT32 pow2processors;
 extern int lock_id;
 extern PIN_LOCK mapLock;
+extern UINT32 getHomeNode(CACHE_TAG addr);
 extern SIMULATION_CONFIG catch_all_config;
 extern std::map<CACHE_TAG, DIRECTORY_LINE *> dir_map;
 
@@ -72,7 +73,6 @@ class COHERENCE
     virtual VOID DataWriteBack(){}
     virtual DIRECTORY_LINE *getDirLine(CACHE_TAG tag){return NULL;}
 };
-
 
 
 /* ===================================================================== */

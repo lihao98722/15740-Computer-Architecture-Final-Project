@@ -19,7 +19,6 @@
 
 extern KNOB<string> KnobOutputFile;
 extern KNOB<BOOL>   KnobNoSharedLibs;
-extern SIMULATION_CONFIG catch_all_config;
 extern CACHE_CONFIG l1_config;
 
 class Stat

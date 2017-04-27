@@ -242,5 +242,4 @@ private:
     UINT32  _num_processors;
     UINT32  _cache_size;
     UINT32  _line_size;
-
 }
