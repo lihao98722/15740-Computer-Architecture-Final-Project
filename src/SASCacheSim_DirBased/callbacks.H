@@ -79,13 +79,13 @@ typedef struct
     INT32  total_processors;
 } SIMULATION_CONFIG;
 
-VOID CacheLoad(UINT32 tid, ADDRINT addr);
-VOID CacheStore(UINT32 tid, ADDRINT addr);
-VOID ProcessAttach();
-VOID ProcessDetach();
-VOID ThreadAttach();
-VOID ThreadDetach();
+VOID cache_load(UINT32 tid, ADDRINT addr);
+VOID cache_store(UINT32 tid, ADDRINT addr);
+VOID process_attach();
+VOID process_detach();
+VOID thread_attach();
+VOID thread_detach();
 
-void IncreaseLoad(ADDRINT addr);
-void IncreaseStore(ADDRINT addr);
-std::string StatToString();
+void increase_load(ADDRINT addr);
+void increase_store(ADDRINT addr);
+std::string stat_to_string();

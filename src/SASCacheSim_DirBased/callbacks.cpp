@@ -34,9 +34,8 @@ std::unordered_map<ADDRINT, Stat> _mem;
 /* ===================================================================== */
 /* Global Variables */
 /* ===================================================================== */
-CACHE<CACHE_SET::TAG_MEMORY>* p_array[MAX_PROCESSORS];  // Array of Processors being Simulated
+Controller controller;
 std::map<UINT32, UINT32> t_map;                         // Mapping which Thread Belongs to Which processor
-std::map<CACHE_TAG, DIRECTORY_LINE *> dir_map;          // Directory Based Map
 UINT32 active_threads = 0;
 UINT32 nextPID = 0;
 INT32 totalBitsToShift;
@@ -48,70 +47,59 @@ PIN_LOCK mapLock;
 
 
 /* ===================================================================== */
-UINT32 getHomeNode(CACHE_TAG tag)
+static inline INT32 floor_log2(UINT32 n)
+{
+    INT32 p = 0;
+
+    if (n == 0) return -1;
+    if (n & 0xffff0000) { p += 16; n >>= 16; }
+    if (n & 0x0000ff00)	{ p +=  8; n >>=  8; }
+    if (n & 0x000000f0) { p +=  4; n >>=  4; }
+    if (n & 0x0000000c) { p +=  2; n >>=  2; }
+    if (n & 0x00000002) { p +=  1; }
+
+    return p;
+}
+
+/* ===================================================================== */
+static inline INT32 ceil_log2(UINT32 n)
+{
+    return floor_log2(n - 1) + 1;
+}
+
+/* ===================================================================== */
+UINT32 get_home_node(CACHE_TAG tag)
 {
     return ((tag >> totalBitsToShift) & processorsMask);
 }
 
 /* ===================================================================== */
-UINT32 getPID(UINT32 tid)
+UINT32 get_pid(UINT32 tid)
 {
     std::map<UINT32, UINT32>::iterator t_map_it = t_map.find(tid);
     return t_map_it->second;
 }
 
 /* ===================================================================== */
-
-VOID CacheLoad(UINT32 tid, ADDRINT addr)
+VOID cache_load(UINT32 tid, ADDRINT pin_addr)
 {
     PIN_GetLock(&mapLock, lock_id++);
-    p_array[getPID(tid)]->LoadSingleLine(addr);
-    IncreaseLoad(addr);
+    UINT64 addr = reinterpret_cast<UINT64>(pin_addr);
+    UINT32 pid = get_pid(tid);
+    controller.cache[pid].load_single_line(addr, pid);
+    increase_load(pin_addr);
     PIN_ReleaseLock(&mapLock);
 }
 
 /* ===================================================================== */
-
-VOID CacheStore(UINT32 tid, ADDRINT addr)
+VOID cache_store(UINT32 tid, ADDRINT pin_addr)
 {
     PIN_GetLock(&mapLock, lock_id++);
-    p_array[getPID(tid)]->StoreSingleLine(addr);
-    IncreaseStore(addr);
+    UINT64 addr = reinterpret_cast<UINT64>(pin_addr);
+    UINT32 pid = get_pid(tid);
+    controller.cache[pid].store_single_line(addr, pid);
+    increase_store(pin_addr);
     PIN_ReleaseLock(&mapLock);
-}
-
-/* ===================================================================== */
-VOID setProcessorsArray(UINT32 totalProcessors)
-{
-    char  buf[512];
-    for (UINT32 i=0 ; i<totalProcessors; i++)
-    {
-        sprintf(buf, "%s: %d %s\n", "Processor", i, "L1 Data Cache");
-        string s1 = string(buf);
-        int size = l1_config.num_sets * l1_config.set_size *
-                   l1_config.line_size;
-
-        CACHE<CACHE_SET::TAG_MEMORY>* ptr1;
-
-        ptr1 = new CACHE<CACHE_SET::TAG_MEMORY>
-                     (s1, size, l1_config.line_size, l1_config.set_size, l1_config.write,
-                      l1_config.coherence, l1_config.interconnect, p_array, i);
-        p_array[i] = ptr1;
-    }
-
-    PIN_GetLock(&mapLock, lock_id++);
-    active_threads++;
-    lock_id = PIN_ReleaseLock(&mapLock);
-}
-
-/* ===================================================================== */
-VOID unsetProcessorsArray(UINT32 totalProcessors)
-{
-    for (UINT32 i=0 ; i<totalProcessors; i++)
-    {
-        assert(p_array[i]->valid == true);
-        p_array[i]->valid = false;
-    }
 }
 
 /* ===================================================================== */
@@ -119,41 +107,44 @@ inline UINT32 get_current_tid()
 {
     return PIN_ThreadId();
 }
+
 /* ===================================================================== */
 inline UINT32 get_next_pid()
 {
     // Round Robbin, condition typically faster than modulo
     return nextPID == pow2processors ? 0 : nextPID++;
 }
-/* ===================================================================== */
-VOID ProcessDetach()
-{
-    unsetProcessorsArray(pow2processors);
-    std::ofstream out(KnobOutputFile.Value().c_str());
-    // Skip main process, starting from thread 1 since thread0 is the main application
-    for (auto i = 1; i < catch_all_config.total_processors; ++i)
-    {
-        out << p_array[i]->StatsLong("+ ") << endl;
-    }
-    if (catch_all_config.track_loads || catch_all_config.track_stores)
-    {
-        out << StatToString();
-    }
 
+/* ===================================================================== */
+void process_attach()
+{
+    pow2processors = 1 << ceil_log2(catch_all_config.total_processors);
+    processorsMask = pow2processors-1;
+    // Creates Processors
+    controller = Controller(catch_all_config.total_processors,
+                            l1_config.num_sets,
+                            l1_config.line_size,
+                            l1_config.set_size,
+                            l1_config.write,
+                            l1_config.coherence,
+                            l1_config.interconnect);
+
+    PIN_GetLock(&mapLock, lock_id++);
+    active_threads++;
+    PIN_ReleaseLock(&mapLock);
+}
+
+/* ===================================================================== */
+VOID process_detach()
+{
+    std::ofstream out(KnobOutputFile.Value().c_str());
+    out << controller.stat_to_string();
+    out << stat_to_string();
     out.close();
 }
-/* ===================================================================== */
-VOID ProcessAttach()
-{
-    totalBitsToShift = 16 - FloorLog2(l1_config.line_size);
-    pow2processors = 1 << CeilLog2(catch_all_config.total_processors);
-    processorsMask = pow2processors-1;
 
-    // Creates Processors
-    setProcessorsArray(pow2processors);
-}
 /* ===================================================================== */
-VOID ThreadAttach()
+VOID thread_attach()
 {
     auto temp_tid = get_current_tid();
     auto temp_pid = get_next_pid();
@@ -161,7 +152,7 @@ VOID ThreadAttach()
     (VOID)t_map.insert(std::pair<UINT32, UINT32>(temp_tid, temp_pid));
 }
 
-VOID ThreadDetach()
+VOID thread_detach()
 {
     auto tid = get_current_tid();
     std::map<UINT32, UINT32>::iterator t_map_it = t_map.find(tid);
@@ -171,17 +162,17 @@ VOID ThreadDetach()
     }
 }
 
-void IncreaseLoad(ADDRINT addr)
+void increaseLoad(ADDRINT addr)
 {
     ++_mem[addr].loads;
 }
 
-void IncreaseStore(ADDRINT addr)
+void increaseStore(ADDRINT addr)
 {
     ++_mem[addr].stores;
 }
 
-std::string StatToString()
+std::string stat_to_string()
 {
     std::stringstream ss;
     ss << "Memory Stats:\n";
