@@ -1,538 +1,246 @@
-
-// @ORIGINAL_AUTHOR: Artur Klauser
-// @EXTENDED: Gang-Ryung Uh
-
 #pragma once
 
 #include <sstream>
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <vector>
 
-/* ===================================================================== */
-/*  @brief Checks if n is a power of 2.                                  */
-/*  @returns true if n is power of 2                                     */
-/* ===================================================================== */
-static inline bool IsPower2(UINT32 n)
+// number of bits to shift for address elements
+UINT32 offset_num_bits = 0;
+
+// bit masks for address extraction
+UINT64 tag_mask = ~0;
+UINT64 offset_mask = ~0;
+
+enum class CACHE_STATE
 {
-    return ((n & (n - 1)) == 0);
-}
+    UNCACHED,
+    INVALID,
+    SHARED,
+    MODIFIED,
+};
 
 /* ===================================================================== */
-/*!
- *  @brief Computes floor(log2(n))
- *  Works by finding position of MSB set.
- *  @returns -1 if n == 0.
- */
+/*  @brief Cache Line - cache tag                                        */
 /* ===================================================================== */
-static inline INT32 FloorLog2(UINT32 n)
+class Cache_Line
 {
-    INT32 p = 0;
-
-    if (n == 0) return -1;
-
-    if (n & 0xffff0000) { p += 16; n >>= 16; }
-    if (n & 0x0000ff00)	{ p +=  8; n >>=  8; }
-    if (n & 0x000000f0) { p +=  4; n >>=  4; }
-    if (n & 0x0000000c) { p +=  2; n >>=  2; }
-    if (n & 0x00000002) { p +=  1; }
-
-    return p;
-}
-
-/* ===================================================================== */
-/*  @brief Computes floor(log2(n))                                       */
-/*  Works by finding position of MSB set.                                */
-/*  @returns -1 if n == 0.                                               */
-/* ===================================================================== */
-static inline INT32 CeilLog2(UINT32 n)
-{
-    return FloorLog2(n - 1) + 1;
-}
-
-/* ===================================================================== */
- typedef enum class CACHE_STATE
- {
-   INVALID,
-   SHARED,
-   EXCLUSIVE,
-   MODIFIED,
-   VALID
- };
-
-typedef enum
-{
-    CACHE_MISS = 0,
-    CACHE_HIT,
-    COHERENCE_MISS,
-    HIT_MISS_TYPES_NUM
-} HIT_MISS_TYPES;
-
-
-/* ===================================================================== */
-/*  @brief Cache tag - self clearing on creation                         */
-/* ===================================================================== */
-class CACHE_TAG
-{
-  private:
-    ADDRINT _tag;
-
-  public:
-    CACHE_TAG(ADDRINT tag = 0)
+public:
+    Cache_Line(const UINT64 &addr_tag)
     {
-      _tag = tag;
+        state = CACHE_STATE::UNCACHED;
+        lru = 0;
+        tag = addr_tag;
     }
 
-    bool operator == (const CACHE_TAG &right) const
-    {
-      return _tag == right._tag;
-    }
-
-    operator ADDRINT() const
-    {
-      return _tag;
-    }
+public:
+    CACHE_STATE  state;
+    UINT64  lru;
+    UINT64  tag;
 };
 
 
 /* ===================================================================== */
-/*!
- * Everything related to cache sets
- */
+/*  @brief Cache Set - cache set with LRU replacement                    */
 /* ===================================================================== */
-namespace CACHE_SET
+class Cache_Set
 {
-
-/* ===================================================================== */
-/*!
- *  @brief Cache set with LRU replacement
- */
-/* ===================================================================== */
-class TAG_MEMORY
-{
-  private:
-    CACHE_TAG   *     _tags;
-    INT32       *     _lru;
-    CACHE_STATE *     _valid;
-    INT32             _tagsLastIndex;
-
-  public:
-    TAG_MEMORY(UINT32 associativity = MAX_ASSOCIATIVITY) : _tagsLastIndex(associativity - 1)
+public:
+    Cache_Set(UINT32 associativity)
+            : _associativity(associativity),
+              _current_index(0)
     {
-        _tags = new CACHE_TAG[associativity];
-        _lru = new INT32[associativity];
-        _valid = new CACHE_STATE[associativity];
+        _lines = std::vector<Cache_Line>(_associativity, Cache_Line(0));
+    }
 
-        for (INT32 index = _tagsLastIndex; index >= 0; index--)
+    /* ===================================================================== */
+    CACHE_STATE find(UINT64 tag)
+    {
+        for (auto & line : _lines)
         {
-            _tags[index] = CACHE_TAG(0);
-            _lru[index] = 0;
-            _valid[index] = CACHE_STATE::INVALID;
-        }
-    }
-
-    /* ===================================================================== */
-    inline VOID SetState(INT32 index, CACHE_STATE state)
-    {
-        _valid[index] = state;
-    }
-    /* ===================================================================== */
-    inline CACHE_STATE GetState(INT32 index)
-    {
-        return _valid[index];
-    }
-
-    /* ===================================================================== */
-    inline VOID SetAssociativity(UINT32 associativity)
-    {
-        _tagsLastIndex = associativity - 1;
-    }
-
-    /* ===================================================================== */
-    inline INT32 GetAssociativity(UINT32 associativity) {
-        return _tagsLastIndex + 1;
-    }
-
-    /* ===================================================================== */
-    INT32 Find(CACHE_TAG tag)
-    {
-        INT32 index = -1;
-        for (INT32 i = _tagsLastIndex; i >= 0; i--) {
-            _lru[i]++;
-            if(_tags[i] == tag) {
-                _lru[i] = 0;
-                index = i;
-            }
-        }
-        return index;
-    }
-
-    /* ===================================================================== */
-    INT32 Replace(CACHE_TAG tag)
-    {
-        INT32 maxlru = 0;
-        int pick = 0;
-
-        for (INT32 i = 0; i < _tagsLastIndex; i++)
-        {
-            if (_valid[i] == CACHE_STATE::INVALID)
+            if (line.tag == tag)
             {
-                pick = i;
-                break;
-            }
-
-            if (_lru[i] > maxlru)
-            {
-                maxlru = _lru[i];
-                pick = i;
+                ++line.lru;
+                return line.state;
             }
         }
-        _tags[pick]  = tag;
-        _valid[pick] = CACHE_STATE::VALID;
-        _lru[pick]   = 0;
-        return pick;
+        return CACHE_STATE::UNCACHED;
     }
-};
 
-}; // namespace CACHE_SET
-
-
-/* ===================================================================== */
-/*  @brief Generic cache base class;                                     */
-/*  no allocate specialization, no cache set specialization              */
-/* ===================================================================== */
-const UINT32   HIT_MISS_NUM = 3;
-class CACHE_BASE
-{
-  public:
-    typedef enum
+    /* ===================================================================== */
+    void insert(UINT64 tag, CACHE_STATE state)
     {
-        ACCESS_TYPE_LOAD,
-        ACCESS_TYPE_STORE,
-        ACCESS_TYPE_NUM
-    } ACCESS_TYPE;
-
-  protected:
-    UINT64                _access[ACCESS_TYPE_NUM][HIT_MISS_NUM];
-    UINT64                _cycle[ACCESS_TYPE_NUM][HIT_MISS_NUM];
-    UINT64                _cost;
-
-  private:
-    // input params
-    const std::string     _name;
-    const UINT32          _cacheSize;
-    const UINT32          _lineSize;
-    const UINT32          _associativity;
-
-    // inferred params
-    const UINT32          _lineShift;
-    const UINT32          _setIndexMask;
-
-    UINT64 SumAccess(bool hit) const
-    {
-        UINT64 sum = 0;
-
-        for (UINT32 accessType = 0; accessType < ACCESS_TYPE_NUM; accessType++)
+        auto index = _current_index;
+        if (index < 0)  // evict
         {
-            sum += _access[accessType][hit];
-        }
-        return sum;
-    }
-
-    UINT64 SumCycle(HIT_MISS_TYPES type) const
-    {
-        UINT64 sum = 0;
-
-        for (UINT32 accessType = 0; accessType < ACCESS_TYPE_NUM; accessType++)
-        {
-            sum += _cycle[accessType][type];
-        }
-        return sum;
-    }
-
-
-  protected:
-    UINT32 NumSets() const {
-      return _setIndexMask + 1;
-    }
-
-  public:
-    CACHE_BASE( std::string name,
-                UINT32      cacheSize,
-                UINT32      lineSize,
-                UINT32      associativity)
-              : _name(name),
-                _cacheSize(cacheSize),
-                _lineSize(lineSize),
-                _associativity(associativity),
-                _lineShift(FloorLog2(lineSize)),
-                _setIndexMask((cacheSize / (associativity * lineSize)) - 1)
-    {
-        ASSERTX(IsPower2(_lineSize));
-        ASSERTX(IsPower2(_setIndexMask + 1));
-
-        for (UINT32 accessType = 0; accessType < ACCESS_TYPE_NUM; accessType++)
-        {
-            _access[accessType][CACHE_HIT] = 0;
-            _access[accessType][CACHE_MISS] = 0;
-            _access[accessType][COHERENCE_MISS] = 0;
-
-            _cycle[accessType][CACHE_HIT] = 0;
-            _cycle[accessType][CACHE_MISS] = 0;
-            _cycle[accessType][COHERENCE_MISS] = 0;
-        }
-
-        _cost = 0;
-    }
-
-    /* ===================================================================== */
-    inline UINT64 HitCycles(ACCESS_TYPE accessType) const {
-        return _cycle[accessType][CACHE_HIT];
-    }
-
-    /* ===================================================================== */
-    inline UINT64 MissCycles(ACCESS_TYPE accessType) const {
-        return _cycle[accessType][CACHE_MISS];
-    }
-
-    /* ===================================================================== */
-    inline UINT64 CoherenceMissCycles(ACCESS_TYPE accessType) const {
-        return _cycle[accessType][COHERENCE_MISS];
-    }
-
-    /* ===================================================================== */
-    inline UINT64 TotalCycles(ACCESS_TYPE accessType) const {
-        return HitCycles(accessType) + MissCycles(accessType) + CoherenceMissCycles(accessType);
-    }
-
-    /* ===================================================================== */
-    inline UINT64 TotalHitCycles() const {
-        return SumCycle(CACHE_HIT);
-
-    }
-
-    /* ===================================================================== */
-    inline UINT64 TotalMissCycles() const {
-        return SumCycle(CACHE_MISS) + SumCycle(COHERENCE_MISS);
-    }
-
-    /* ===================================================================== */
-    inline UINT64 Hits(ACCESS_TYPE accessType) const {
-        return _access[accessType][CACHE_HIT];
-    }
-
-    /* ===================================================================== */
-    inline UINT64 Misses(ACCESS_TYPE accessType) const {
-        return _access[accessType][CACHE_MISS];
-    }
-
-    /* ===================================================================== */
-    inline UINT64 CoherenceMisses(ACCESS_TYPE accessType) const {
-        return _access[accessType][COHERENCE_MISS];
-    } // Adrian Perez
-
-    /* ===================================================================== */
-    inline UINT64 Accesses(ACCESS_TYPE accessType) const {
-        return Hits(accessType) + Misses(accessType) + CoherenceMisses(accessType);
-    }
-
-    /* ===================================================================== */
-    inline UINT64 Hits() const {
-        return SumAccess(true);
-    }
-
-    /* ===================================================================== */
-    inline UINT64 Misses() const {
-        return SumAccess(false);
-    }
-
-    /* ===================================================================== */
-    inline UINT64 Accesses() const {
-        return Hits() + Misses();
-    }
-
-    /* ===================================================================== */
-    inline UINT32 GetIndex(CACHE_TAG tag) const
-    {
-        return (tag & _setIndexMask);
-    }
-
-    /* ===================================================================== */
-    inline VOID SplitAddress(const ADDRINT addr, CACHE_TAG & tag, UINT32 & setIndex) const
-    {
-        tag = addr >> _lineShift;
-        setIndex = tag & _setIndexMask;
-    }
-
-    /* ===================================================================== */
-    inline VOID SplitAddress(const ADDRINT addr, CACHE_TAG & tag, UINT32 & setIndex, UINT32 & lineIndex) const
-    {
-        const UINT32 lineMask = _lineSize - 1;
-        lineIndex = addr & lineMask;
-        SplitAddress(addr, tag, setIndex);
-    }
-
-    /* ===================================================================== */
-    inline std::string StatsLong(string prefix) const
-    {
-        std::stringstream out;
-        out << prefix << _name << "\n";
-        out << prefix << std::setw(25) << std::left << " "
-                      << std::setw(15) << std::left << "Count"
-                      << std::setw(15) << std::left << "%"
-                      << std::setw(15) << std::left << "Cycles"
-                      << std::setw(10) << std::left << "%" << '\n';
-
-        for (UINT32 i = 0; i < ACCESS_TYPE_NUM; i++)
-        {
-            const ACCESS_TYPE accessType = ACCESS_TYPE(i);
-
-            std::string type(accessType == ACCESS_TYPE_LOAD ? "Load" : "Store");
-
-            out << prefix << std::setw(25) << std::left << (type + "-Hits")
-                          << std::setw(15) << std::left << Hits(accessType)
-                          << std::setw(15) << std::left << (100.0 * Hits(accessType) / Accesses(accessType))
-                          << std::setw(15) << std::left << HitCycles(accessType)
-                          << std::setw(10) << std::left <<  (100.0 * HitCycles(accessType) / TotalCycles(accessType))  << "\n";
-
-            out << prefix << std::setw(25) << std::left << (type + "-Misses:")
-                          << std::setw(15) << std::left << Misses(accessType)
-                          << std::setw(15) << std::left << (100.0 * Misses(accessType) / Accesses(accessType))
-                          << std::setw(15) << std::left << MissCycles(accessType)
-                          << std::setw(10) << std::left << (100.0 * MissCycles(accessType) / TotalCycles(accessType)) << "\n";
-
-            out << prefix << std::setw(25) << std::left << (type + "-Coherence Misses:")
-                          << std::setw(15) << std::left << CoherenceMisses(accessType)
-                          << std::setw(15) << std::left << (100.0 * CoherenceMisses(accessType) / Accesses(accessType))
-                          << std::setw(15) << std::left << CoherenceMissCycles(accessType)
-                          << std::setw(10) << std::left << (100.0 * CoherenceMissCycles(accessType) / TotalCycles(accessType)) << "\n";
-
-            out << prefix << std::setw(25) << std::left << (type + "-Total Accesses:")
-                          << std::setw(15) << std::left << Accesses(accessType)
-                          << std::setw(15) << std::left << 100.0
-                          << std::setw(15) << std::left << TotalCycles(accessType)
-                          << std::setw(10) << std::left << 100.0 << "\n\n";
-        }
-
-        out << prefix << std::setw(25) << std::left << "Total-Hits:"
-                      << std::setw(15) << std::left << Hits()
-                      << std::setw(15) << std::left << (100.0 * Hits() / Accesses())
-                      << std::setw(15) << std::left << TotalHitCycles()
-                      << std::setw(10) << std::left << (100.0 * TotalHitCycles() / _cost) << "\n";
-
-        out << prefix << std::setw(25) << std::left << "Total-Misses:"
-                      << std::setw(15) << std::left << Misses()
-                      << std::setw(15) << std::left << (100.0 * Misses() / Accesses())
-                      << std::setw(15) << std::left << TotalMissCycles()
-                      << std::setw(10) << std::left << (100.0 * TotalMissCycles() / _cost) << "\n\n";
-
-        out << prefix << std::setw(25) << std::left << "Estimated Cost:"
-                      << std::setw(15) << std::left << Accesses()
-                      << std::setw(15) << std::left << 100.0
-                      << std::setw(15) << std::left << _cost
-                      << std::setw(10) << std::left << 100.0 << "\n\n";
-
-        return out.str();
-    }
-};
-
-/* ========================================================================== */
-/*  @brief Templated cache class with specific cache set allocation policies  */
-/*  All that remains to be done here is allocate and deallocate the right     */
-/*  type of cache sets.                                                       */
-/* ========================================================================== */
-#include "coherence.H"
-template <class SET>
-class CACHE : public CACHE_BASE
-{
-  private:
-    SET *                   _sets;
-    UINT32                  interconnection;
-    UINT32                  write;
-
-  public:
-    BOOL                    valid;
-    UINT32                  mypid;
-    CACHE **                mymap;
-    COHERENCE<SET,CACHE> *  coherence;
-
-    CACHE(  std::string     name,
-            UINT32          cacheSize,
-            UINT32          lineSize,
-            UINT32          associativity,
-            UINT32          coherence_write,
-            UINT32          coherence_protocol,
-            UINT32          interconnection_type,
-            CACHE **        map,
-            UINT32          pid)
-          : CACHE_BASE(name, cacheSize, lineSize, associativity)
-    {
-        _sets = new SET[NumSets()];
-
-        for (UINT32 i = 0; i < NumSets(); i++)
-        {
-            _sets[i].SetAssociativity(associativity);
-        }
-
-        valid = true;
-        mypid = pid;
-        mymap = map;
-
-        if (coherence_write == WRITE_BACK_ALLOCATE && coherence_protocol == PROTOCOL_MSI)
-        {
-            coherence = new DIR_MSI<SET,CACHE>(map, mypid);
+            index = evict();
         }
         else
         {
-            perror("CACHE_BASE: Invalid combination of cache write strategy and coherence protocol");
-            exit(1);
+            _current_index = _current_index == _num_lines ? -1 : _current_index + 1;
         }
-        interconnection = interconnection_type;
+
+        _lines[index].state = state;
+        _lines[index].lru = 0;
+        _lines[index].tag = tag;
     }
 
-    ~CACHE()
+private:
+    INT32 evict()
     {
-        delete[] _sets;
+        UINT64 _min = _line[0].lru;
+        INT32 _evict = 0;
+
+        for (auto i = 1; i < _lines.size(); ++i)
+        {
+            if (_lines[i].lru < _min)
+            {
+                _evict = i;
+                _min = _lines[i].lru;
+            }
+        }
+
+        return _evict;
     }
 
-    /* ===================================================================== */
-    /*  @return true if accessed cache line hits                             */
-    /* ===================================================================== */
-    VOID StoreSingleLine(ADDRINT addr)
-    {
-        INT32 cost;
-        CACHE_TAG tag;
-        UINT32 setIndex;
-        SplitAddress(addr, tag, setIndex);
-        SET & set = _sets[setIndex];
-        HIT_MISS_TYPES hit = coherence->processWrite(&set, tag, &cost);
-        _access[ACCESS_TYPE_STORE][hit]++;
-        _cycle[ACCESS_TYPE_STORE][hit] += cost;
-        _cost += cost;
-    }
+private:
+    INT32  _associativity;  // number of lines per cache set
+    INT32  _current_index;  // first uncached index
 
-    /* ===================================================================== */
-    /*  @return true if accessed cache line hits                             */
-    /* ===================================================================== */
-    VOID LoadSingleLine(ADDRINT addr)
-    {
-        INT32 cost;
-        CACHE_TAG tag;
-        UINT32 setIndex;
-        SplitAddress(addr, tag, setIndex);
-        SET & set = _sets[setIndex];
-        HIT_MISS_TYPES hit = coherence->processRead(&set, tag, &cost);
-        _access[ACCESS_TYPE_LOAD][hit]++;
-        _cycle[ACCESS_TYPE_LOAD][hit] += cost;
-        _cost += cost;
-    }
-
-    /* ===================================================================== */
-    /* Return the Cache Line in set                                          */
-    /* ===================================================================== */
-    SET* getSET(CACHE_TAG tag)
-    {
-        UINT32 setIndex = GetIndex(tag);
-        return &_sets[setIndex];
-    }
+    std::vector<Cache_Line>  _lines;
 };
+
+
+/* ===================================================================== */
+/*  @brief Cache - cache                                                 */
+/* ===================================================================== */
+#include "coherence.H"
+class Cache
+{
+public:
+    Cache(UINT32 associativity, UINT32 num_sets)
+        : _associativity(associativity),
+          _num_sets(num_sets)
+    {
+        sets = std::vector<Cache_Set>(num_sets, associativity);
+    }
+
+public:
+    std::vector<Cache_Set>  sets;
+
+private:
+    const UINT32  _associativity;
+    const UINT32  _num_sets;
+
+};
+
+
+/* ===================================================================== */
+/*  @brief Cache Controller - cache controller                           */
+/* ===================================================================== */
+#include "profile.H"
+class Controller
+{
+public:
+    Controller(UINT32       num_processors,
+               UINT32       num_sets,
+               UINT32       line_size,
+               UINT32       associativity,
+               UINT32       coherence_write,
+               UINT32       coherence_protocol,
+               UINT32       interconnection_type)
+             : _num_processors(num_processors),
+               _cache_size(cache_size),
+               _line_size(line_size)
+    {
+        _cache_size = num_sets * associativity * line_size;
+        cache = std::vector<Cache>(num_processors, Cache(associativity, num_sets));
+        coherence = DIR_MSI<SET,Cache>(cache);
+        profiles = std::vector<Profile>(num_processors, Profile(_cache_size, line_size, associativity));
+
+        offset_num_bits = get_num_bits(line_size);
+        set_index_num_bits = get_num_bits(num_sets);
+
+        tag_mask = (tag_mask << (offset_num_bits + set_index_num_bits));
+        offset_mask = ~(offset_mask << offset_num_bits);
+    }
+
+    /* ===================================================================== */
+    void store_single_line(UINT64 addr, UINT32 pid)
+    {
+        UINT64 tag = get_tag(addr);
+        UINT32 set_index = get_set_index(addr);
+        Cache_Set set = _cache[pid].set[set_index];
+
+        INT32 cost = 0;
+        HIT_MISS_TYPES hit = coherence.process_write(set, tag, &cost);
+
+        profiles[pid]._access[ACCESS_TYPE_STORE][hit]++;
+        profiles[pid]._cycle[ACCESS_TYPE_STORE][hit] += cost;
+        profiles[pid]._cost += cost;
+    }
+
+    /* ===================================================================== */
+    void load_single_line(UINT64 addr, UINT32 pid)
+    {
+        UINT64 tag = get_tag(addr);
+        UINT32 set_index = get_set_index(addr);
+        Cache_Set set = _cache[pid].set[set_index];
+
+        INT32 cost = 0;
+        HIT_MISS_TYPES hit = coherence.process_read(set, tag, &cost);
+
+        profiles[pid]._access[ACCESS_TYPE_LOAD][hit]++;
+        profiles[pid]._cycle[ACCESS_TYPE_LOAD][hit] += cost;
+        profiles[pid]._cost += cost;
+    }
+
+    std::string stat_to_string()
+    {
+        std::stringstream ss;
+        // Skip main process, starting from thread 1 since thread0 is the main application
+        for (auto i = 1; i < _num_processors; ++i)
+        {
+            ss << "+ Processor: " << i << " L1 Data Cache" << std::endl;
+            ss << profiles[i].StatsLong("+ ") << std::endl;
+        }
+
+        return ss.str();
+    }
+
+private:
+    // extract line information out of a memory address
+    static inline UINT64 get_set_index(UINT64 addr)
+    {
+        return (addr & (~tag_mask)) >> offset_num_bits;
+    }
+
+    // extract tag infomation out of a memory address
+    static inline UINT64 get_tag(UINT64 addr)
+    {
+        return addr & tag_mask;
+    }
+
+    // get the number of bits needed to represent 'num'
+    static inline UINT32 get_num_bits(UINT64 num)
+    {
+        UINT32 num_bits = 0;
+        for (; num > 0; num /= 2)
+        {
+            ++num_bits;
+        }
+        return num_bits;
+    }
+
+public:
+    Coherence<Cache_Set, Cache>  coherence;
+    std::vector<Cache>  cache;
+    std::vector<Profile>   profiles;
+
+private:
+    UINT32  _num_processors;
+    UINT32  _cache_size;
+    UINT32  _line_size;
+
+}
