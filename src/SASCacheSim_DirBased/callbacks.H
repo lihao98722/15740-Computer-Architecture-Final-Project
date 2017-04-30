@@ -1,42 +1,22 @@
 // @ORIGINAL_AUTHOR: Gang-Ryung Uh
-
 #pragma once
 
+#include <assert.h>
+#include <iostream>
+#include <fstream>
+#include <list>
 #include <unordered_map>
-#include "pin.H"
+#include <map>
+#include <vector>
 
+#include "pin.H"
+#include "cache.H"
+// #include "coherence.H"
 
 #define THREAD_ATTACH   1
 #define THREAD_DETACH   2
 #define PROCESS_ATTACH  3
 #define PROCESS_DETACH  4
-
-#define MAX_PROCESSORS     1024
-#define MAX_THREADS         256
-#define MAX_SETS           4096 // cacheSize / (lineSize * associativity);
-#define MAX_ASSOCIATIVITY   256 // associativity;
-
-typedef enum
-{
-    NO_BUS_ACTION,
-    BUS_READ,
-    BUS_READ_EXCLUSIVE,
-    BUS_WRITE,
-    BUS_ACTIONS_NUM
-} BUS_ACTION;
-
-typedef enum
-{
-    NO_DIR_ACTION,
-    READ_MISS,
-    WRITE_MISS,
-    INVALIDATE,
-    FETCH,
-    FETCH_INVALIDATE,
-    DATA_VALUE_REPLY,
-    DATA_WRITE_BACK,
-    DIR_ACTIONS_NUM
-} DIR_ACTION;
 
 typedef struct
 {

@@ -6,20 +6,15 @@
 #include <iomanip>
 #include <vector>
 
+#include "coherence.H"
+
 // number of bits to shift for address elements
 UINT32 offset_num_bits = 0;
+UINT32 set_index_num_bits = 0;
 
 // bit masks for address extraction
 UINT64 tag_mask = ~0;
 UINT64 offset_mask = ~0;
-
-enum class CACHE_STATE
-{
-    UNCACHED,
-    INVALID,
-    SHARED,
-    MODIFIED,
-};
 
 /* ===================================================================== */
 /*  @brief Cache Line - cache tag                                        */
@@ -29,17 +24,14 @@ class Cache_Line
 public:
     Cache_Line(const UINT64 &addr_tag)
     {
-        state = CACHE_STATE::UNCACHED;
         lru = 0;
         tag = addr_tag;
     }
 
 public:
-    CACHE_STATE  state;
     UINT64  lru;
     UINT64  tag;
 };
-
 
 /* ===================================================================== */
 /*  @brief Cache Set - cache set with LRU replacement                    */
@@ -55,44 +47,28 @@ public:
     }
 
     /* ===================================================================== */
-    CACHE_STATE find(UINT64 tag)
-    {
-        for (auto & line : _lines)
-        {
-            if (line.tag == tag)
-            {
-                ++line.lru;
-                return line.state;
-            }
-        }
-        return CACHE_STATE::UNCACHED;
-    }
-
-    /* ===================================================================== */
-    void insert(UINT64 tag, CACHE_STATE state)
+    void fetch(UINT64 tag)
     {
         auto index = _current_index;
         if (index < 0)  // evict
         {
             index = evict();
+            _lines[index].tag = tag;
         }
         else
         {
-            _current_index = _current_index == _num_lines ? -1 : _current_index + 1;
+            _current_index = (_current_index == _associativity) ? -1 : _current_index + 1;
         }
-
-        _lines[index].state = state;
-        _lines[index].lru = 0;
-        _lines[index].tag = tag;
+        ++_lines[index].lru;
     }
 
 private:
     INT32 evict()
     {
-        UINT64 _min = _line[0].lru;
+        UINT64 _min = _lines[0].lru;
         INT32 _evict = 0;
 
-        for (auto i = 1; i < _lines.size(); ++i)
+        for (UINT32 i = 1; i < _lines.size(); ++i)
         {
             if (_lines[i].lru < _min)
             {
@@ -111,11 +87,9 @@ private:
     std::vector<Cache_Line>  _lines;
 };
 
-
 /* ===================================================================== */
 /*  @brief Cache - cache                                                 */
 /* ===================================================================== */
-#include "coherence.H"
 class Cache
 {
 public:
@@ -126,38 +100,36 @@ public:
         sets = std::vector<Cache_Set>(num_sets, associativity);
     }
 
+    void fetch_cache_line(UINT64 tag, UINT32 index)
+    {
+        sets[index].fetch(tag);
+    }
+
 public:
     std::vector<Cache_Set>  sets;
 
 private:
-    const UINT32  _associativity;
-    const UINT32  _num_sets;
+    UINT32  _associativity;
+    UINT32  _num_sets;
 
 };
-
 
 /* ===================================================================== */
 /*  @brief Cache Controller - cache controller                           */
 /* ===================================================================== */
-#include "profile.H"
 class Controller
 {
 public:
     Controller(UINT32       num_processors,
                UINT32       num_sets,
                UINT32       line_size,
-               UINT32       associativity,
-               UINT32       coherence_write,
-               UINT32       coherence_protocol,
-               UINT32       interconnection_type)
+               UINT32       associativity)
              : _num_processors(num_processors),
-               _cache_size(cache_size),
                _line_size(line_size)
     {
         _cache_size = num_sets * associativity * line_size;
         cache = std::vector<Cache>(num_processors, Cache(associativity, num_sets));
-        coherence = DIR_MSI<SET,Cache>(cache);
-        profiles = std::vector<Profile>(num_processors, Profile(_cache_size, line_size, associativity));
+        coherence = new DIR_MSI(num_processors);
 
         offset_num_bits = get_num_bits(line_size);
         set_index_num_bits = get_num_bits(num_sets);
@@ -166,46 +138,36 @@ public:
         offset_mask = ~(offset_mask << offset_num_bits);
     }
 
-    /* ===================================================================== */
+    ~Controller()
+    {
+        delete coherence;
+    }
+
     void store_single_line(UINT64 addr, UINT32 pid)
     {
         UINT64 tag = get_tag(addr);
-        UINT32 set_index = get_set_index(addr);
-        Cache_Set set = _cache[pid].set[set_index];
-
-        INT32 cost = 0;
-        HIT_MISS_TYPES hit = coherence.process_write(set, tag, &cost);
-
-        profiles[pid]._access[ACCESS_TYPE_STORE][hit]++;
-        profiles[pid]._cycle[ACCESS_TYPE_STORE][hit] += cost;
-        profiles[pid]._cost += cost;
+        UINT32 index = get_set_index(addr);
+        cache[pid].fetch_cache_line(tag, index);
+        coherence->process_write(pid, tag, index);
     }
 
-    /* ===================================================================== */
     void load_single_line(UINT64 addr, UINT32 pid)
     {
         UINT64 tag = get_tag(addr);
-        UINT32 set_index = get_set_index(addr);
-        Cache_Set set = _cache[pid].set[set_index];
-
-        INT32 cost = 0;
-        HIT_MISS_TYPES hit = coherence.process_read(set, tag, &cost);
-
-        profiles[pid]._access[ACCESS_TYPE_LOAD][hit]++;
-        profiles[pid]._cycle[ACCESS_TYPE_LOAD][hit] += cost;
-        profiles[pid]._cost += cost;
+        UINT32 index = get_set_index(addr);
+        cache[pid].fetch_cache_line(tag, index);
+        coherence->process_read(pid, tag, index);
     }
 
     std::string stat_to_string()
     {
         std::stringstream ss;
-        // Skip main process, starting from thread 1 since thread0 is the main application
-        for (auto i = 1; i < _num_processors; ++i)
+        // skip main process, starting from thread 1 since thread0 is the main application
+        for (UINT32 i = 1; i < _num_processors; ++i)
         {
             ss << "+ Processor: " << i << " L1 Data Cache" << std::endl;
-            ss << profiles[i].StatsLong("+ ") << std::endl;
+            ss << coherence->profiles[i].StatsLong("+ ") << std::endl;
         }
-
         return ss.str();
     }
 
@@ -219,27 +181,23 @@ private:
     // extract tag infomation out of a memory address
     static inline UINT64 get_tag(UINT64 addr)
     {
-        return addr & tag_mask;
+        return (addr & tag_mask) >> (offset_num_bits + set_index_num_bits);
     }
 
     // get the number of bits needed to represent 'num'
     static inline UINT32 get_num_bits(UINT64 num)
     {
         UINT32 num_bits = 0;
-        for (; num > 0; num /= 2)
-        {
-            ++num_bits;
-        }
+        for (; num > 0; num /= 2, ++num_bits);
         return num_bits;
     }
 
 public:
-    Coherence<Cache_Set, Cache>  coherence;
+    Coherence * coherence;
     std::vector<Cache>  cache;
-    std::vector<Profile>   profiles;
 
 private:
     UINT32  _num_processors;
     UINT32  _cache_size;
     UINT32  _line_size;
-}
+};

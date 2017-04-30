@@ -1,295 +1,270 @@
-#pragma once
+#ifndef _COHERENCE_H_
+#define _COHERENCE_H_
+// #pragma once
 
 #include <sstream>
 #include <iostream>
 #include <fstream>
-#include <map>
+#include <vector>
+#include <unordered_map>
+#include <assert.h>
 
-#include "cache.H"
-#include "callbacks.H"
+#include "profile.H"
 
-class DIRECTORY_LINE
+typedef enum
 {
-  public:
-    INT32 presenceBits;
-    bool writeBit;
+    LOCAL_CACHE_ACCESS = 3,
+    REMOTE_CACHE_ACCESS = 7,
+    MEMORY_ACCESS = 100
+}COST;
 
-    DIRECTORY_LINE()
-    {
-        presenceBits = 0;
-        writeBit = false;
-    }
+enum class CACHE_STATE
+{
+    INVALID,
+    SHARED,
+    MODIFIED
 };
 
-extern UINT32 active_threads;
-extern UINT32 pow2processors;
-extern int lock_id;
-extern PIN_LOCK mapLock;
-extern UINT32 getHomeNode(CACHE_TAG addr);
-extern SIMULATION_CONFIG catch_all_config;
-extern std::map<CACHE_TAG, DIRECTORY_LINE *> dir_map;
-
-static INT32 COST_HIT = 1;
-static INT32 COST_LOCAL_MISS = 30;
-static INT32 COST_REMOTE_MISS = 60;
-static INT32 COST_BLOCK_TRANSFER = 90;
-
 /* ===================================================================== */
-template <class SET, class CACHE>
-class COHERENCE
+/*  @brief Directory_Line                                                */
+/* ===================================================================== */
+class Directory_Line
 {
-  public:
-    int mypid;
-    UINT32 print_range;
-    UINT32 limit;
-    UINT64 process_transactions;
-    CACHE **map;
-
-    // constructors / destructors
-    COHERENCE(CACHE **my_map, UINT32 pid)
+public:
+    Directory_Line()
     {
-        map = my_map;
-        mypid = pid;
-        print_range = 100000;
-        limit = 0;
+        sharer_vector = 0;
+        state = CACHE_STATE::INVALID;
     }
 
-    virtual VOID ReadMiss(CACHE_TAG tag, UINT32 localNode){}
-    virtual VOID WriteMiss(CACHE_TAG tag, UINT32 localNode){}
-    virtual VOID Invalidate(SET *set, CACHE_TAG tag){}
-    virtual VOID Fetch(SET *set, CACHE_TAG tag){}
-    virtual VOID FetchAndInvalidate(SET *set, CACHE_TAG tag){}
-    virtual VOID DataValueReply(){}
-    virtual VOID DataWriteBack(){}
-    virtual DIRECTORY_LINE *getDirLine(CACHE_TAG tag) = 0;
-    virtual HIT_MISS_TYPES processRead(SET *set, CACHE_TAG tag, INT32 *cost) = 0;
-    virtual HIT_MISS_TYPES processWrite(SET *set, CACHE_TAG tag, INT32 *cost) = 0;
-};
+    bool is_set(UINT32 pid)
+    {
+        return sharer_vector & (1 << pid);
+    }
 
+    UINT32 owner(UINT32 num_processors)
+    {
+        UINT32 pid = 0;
+        for (; !is_set(pid) && (pid < num_processors); ++pid);
+        assert(pid != num_processors && state == CACHE_STATE::MODIFIED);
+        return pid;
+    }
 
+    void set_sharer(UINT32 pid)
+    {
+        sharer_vector |= (1 << pid);
+    }
 
-/* ===================================================================== */
-/*!
- *  @brief Cache Coherence Protocol MSI
- */
-/* ===================================================================== */
-template <class SET, class CACHE>
-class DIR_MSI : public COHERENCE<SET, CACHE>
-{
-  private:
-  public:
-    DIR_MSI(CACHE **my_map, UINT32 pid): COHERENCE<SET,CACHE>(my_map, pid){}
+    void clear_sharer(UINT32 pid)
+    {
+        sharer_vector &= (~(1 << pid));
+    }
 
-    virtual VOID ReadMiss(CACHE_TAG tag, UINT32 localNode) override;
-    virtual VOID WriteMiss(CACHE_TAG tag, UINT32 localNode) override;
-    virtual VOID Invalidate(SET *set, CACHE_TAG tag) override;
-    virtual VOID Fetch(SET *set, CACHE_TAG tag) override;
-    virtual VOID FetchAndInvalidate(SET *set, CACHE_TAG tag) override;
-    virtual DIRECTORY_LINE * getDirLine(CACHE_TAG tag) override;
-    virtual HIT_MISS_TYPES processRead(SET *set, CACHE_TAG tag, INT32 *cost) override;
-    virtual HIT_MISS_TYPES processWrite(SET *set, CACHE_TAG tag, INT32 *cost) override;
-
-    INT32 dirTransaction(DIR_ACTION type, CACHE_TAG tag, INT32 destination);
+public:
+    UINT32  sharer_vector;
+    CACHE_STATE  state;
 
 };
 
 /* ===================================================================== */
-template <class SET, class CACHE>
-VOID DIR_MSI<SET,CACHE>::ReadMiss(CACHE_TAG tag, UINT32 localNode)
+/*  @brief Cache Coherence Directory Based                               */
+/* ===================================================================== */
+class Coherence
 {
-    DIRECTORY_LINE *dirPtr = this->getDirLine(tag);
-    if (dirPtr->writeBit == true)
+public:
+    Coherence(UINT32 num_processors) : _num_processors(num_processors)
     {
-        INT32 remoteNode = FloorLog2(dirPtr->presenceBits);
-        this->dirTransaction(FETCH, tag, remoteNode);
-        dirPtr->writeBit = false;
+        profiles = std::vector<Profile>(num_processors, Profile());
     }
-    // Turns Bit Presence On
-    dirPtr->presenceBits = dirPtr->presenceBits ^ (1 << localNode);
-    this->DataValueReply();
-}
+    virtual ~Coherence();
+    virtual void process_read(UINT32 pid, UINT64 tag, UINT32 set_index) {}
+    virtual void process_write(UINT32 pid, UINT64 tag, UINT32 set_index) {}
+
+    virtual INT32 fetch(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response) {return 0;}
+    virtual INT32 fetch_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response) {return 0;}
+    virtual INT32 read_miss(UINT32 pid, UINT32 home, UINT64 tag) {return 0;}
+    virtual INT32 write_miss(UINT32 pid, UINT32 home, UINT64 tag) {return 0;}
+    virtual INT32 data_write_back(UINT32 pid, UINT32 home) {return 0;}
+
+public:
+    std::vector<Profile> profiles;
+    std::unordered_map<UINT64, Directory_Line>  _directory;
+    UINT32  _num_processors;
+};
 
 /* ===================================================================== */
-template <class SET, class CACHE>
-VOID DIR_MSI<SET, CACHE>::WriteMiss(CACHE_TAG tag, UINT32 localNode)
+/*  @brief Cache Coherence Protocol MSI                                  */
+/* ===================================================================== */
+class DIR_MSI : public Coherence
 {
-    DIRECTORY_LINE *dirPtr = this->getDirLine(tag);
-    INT32 tmp = dirPtr->presenceBits;
-    if (dirPtr->writeBit == false)
+public:
+    DIR_MSI(UINT32 num_processors): Coherence(num_processors) {}
+    virtual void process_read(UINT32 pid, UINT64 tag, UINT32 set_index) override;
+    virtual void process_write(UINT32 pid, UINT64 tag, UINT32 set_index) override;
+
+    virtual INT32 fetch(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response) override;
+    virtual INT32 fetch_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response) override;
+    virtual INT32 read_miss(UINT32 pid, UINT32 home, UINT64 tag) override;
+    virtual INT32 write_miss(UINT32 pid, UINT32 home, UINT64 tag) override;
+    virtual INT32 data_write_back(UINT32 pid, UINT32 home) override
     {
-        for (UINT32 i = 0 ; i < pow2processors ; i++)
+        return get_directory_cost(pid, home) + MEMORY_ACCESS;
+    }
+
+    inline UINT32 get_home_node(UINT64 tag)
+    {
+        return tag & (_num_processors -1);
+    }
+
+    inline INT32 get_directory_cost(UINT32 src, UINT32 dest)
+    {
+        return (src == dest) ? LOCAL_CACHE_ACCESS : REMOTE_CACHE_ACCESS;
+    }
+
+    inline Directory_Line & get_directory_line(UINT64 tag)
+    {
+        auto it = _directory.find(tag);
+        if (it == _directory.end())
         {
-            // Invalidation to all Nodes who had presence bit ON
-            if (tmp & 1 && localNode != i)
-                this->dirTransaction(INVALIDATE, tag, i);
-            tmp = tmp >> 1;
+            _directory[tag] = Directory_Line();
         }
-        dirPtr->writeBit = true;
+        return _directory[tag];
     }
-    else
-    {
-        INT32 remoteNode = FloorLog2(dirPtr->presenceBits);
-        this->dirTransaction(FETCH_INVALIDATE, tag, remoteNode);
-    }
-    dirPtr->presenceBits = 1 << localNode;
-}
-
-
-/* ===================================================================== */
-template <class SET, class CACHE>
-VOID DIR_MSI<SET,CACHE>::Invalidate(SET *set, CACHE_TAG tag)
-{
-    set->SetState(set->Find(tag),CACHE_STATE::INVALID);
-}
-
-/* ===================================================================== */
-template <class SET, class CACHE>
-VOID DIR_MSI<SET,CACHE>::Fetch(SET *set, CACHE_TAG tag)
-{
-    set->SetState(set->Find(tag),CACHE_STATE::SHARED);
-}
-
-/* ===================================================================== */
-template <class SET, class CACHE>
-VOID DIR_MSI<SET,CACHE>::FetchAndInvalidate(SET *set, CACHE_TAG tag)
-{
-    set->SetState(set->Find(tag),CACHE_STATE::INVALID);
-}
-
-/* ===================================================================== */
-template <class SET, class CACHE>
-DIRECTORY_LINE * DIR_MSI<SET,CACHE>::getDirLine(CACHE_TAG tag)
-{
-    typedef std::pair<CACHE_TAG, DIRECTORY_LINE *> Ptr;
-    std::map<CACHE_TAG, DIRECTORY_LINE *>::iterator dir_map_it;
-    dir_map_it = dir_map.find(tag);
-    if (dir_map_it == dir_map.end())
-    {
-        (VOID)dir_map.insert(Ptr(tag, new DIRECTORY_LINE()));
-    }
-    dir_map_it = dir_map.find(tag); // We should be able to simplify this code later
-    return dir_map_it->second;
-}
-
-/* ===================================================================== */
-template <class SET, class CACHE>
-HIT_MISS_TYPES DIR_MSI<SET,CACHE>::processRead(SET *set, CACHE_TAG tag, INT32 *cost)
-{
-    UINT32 destination = getHomeNode(tag);
-    HIT_MISS_TYPES result = CACHE_MISS;
-    INT32 index = set->Find(tag);
-    if (index >= 0)   // Tag Found
-    {
-        switch (set->GetState(index)) // Check Cache Line State
-        {
-          case CACHE_STATE::MODIFIED:
-          case CACHE_STATE::SHARED:
-            result = CACHE_HIT;
-            *cost = COST_HIT;
-            break; // No State Change or Bus Action Required in these two cases
-
-          case CACHE_STATE::INVALID:
-            result = COHERENCE_MISS;
-            *cost = COST_LOCAL_MISS;
-            *cost += this->dirTransaction(READ_MISS, tag, destination);
-            set->SetState(index,CACHE_STATE::SHARED);
-            break;
-
-          default:
-            break;
-        }
-    }
-    else // Tag Not Found
-    {
-        *cost = COST_BLOCK_TRANSFER;
-        *cost += this->dirTransaction(READ_MISS, tag, destination);
-        INT32 newIndex = set->Replace(tag);
-        set->SetState(newIndex,CACHE_STATE::SHARED);
-    }
-    return result;
 };
 
-
-/* ===================================================================== */
-template <class SET, class CACHE>
-HIT_MISS_TYPES DIR_MSI<SET,CACHE>::processWrite(SET *set, CACHE_TAG tag, INT32 *cost)
+// on a processor read with SHARED/MODIFIED
+INT32 DIR_MSI::fetch(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response)
 {
-    HIT_MISS_TYPES result = CACHE_MISS;
-    UINT32 destination = getHomeNode(tag);
-    INT32 index = set->Find(tag);
-    if (index >= 0) // Tag Found
+    INT32 cost = get_directory_cost(pid, home);
+    Directory_Line &dir = get_directory_line(tag);
+    assert(dir.state != CACHE_STATE::INVALID);
+
+    if (dir.is_set(pid))  // requesting node is sharer/owner, no state change
     {
-        switch (set->GetState(index)) // Check Cache Line State
-        {
-          case CACHE_STATE::MODIFIED:
-            result = CACHE_HIT;
-            *cost = COST_HIT;
-            break; // No State Change No Bus Action Needed
-
-          case CACHE_STATE::SHARED:
-            result = CACHE_HIT;
-            *cost = COST_REMOTE_MISS;
-            this->dirTransaction(WRITE_MISS, tag, destination);
-            set->SetState(index,CACHE_STATE::MODIFIED);
-            break;
-
-          case CACHE_STATE::INVALID:
-            *cost = COST_REMOTE_MISS;
-            result= COHERENCE_MISS;
-            this->dirTransaction(WRITE_MISS, tag, destination);
-            set->SetState(index,CACHE_STATE::MODIFIED);
-            break;
-
-          default:
-            break;
-        }
+        response = CACHE_HIT;
+        cost += LOCAL_CACHE_ACCESS;
     }
-    else // On Write we always allocate for this protocol
+    else  // requesting node is not sharer/owner
     {
-        *cost = COST_BLOCK_TRANSFER;
-        set->Replace(tag);
-        this->dirTransaction(WRITE_MISS, tag, destination);
-        set->SetState(index,CACHE_STATE::MODIFIED);
+        response = CACHE_MISS;
+        UINT32 owner = dir.owner(_num_processors);
+        cost += MEMORY_ACCESS + (dir.state == CACHE_STATE::MODIFIED ? data_write_back(owner, home) : 0);
+        dir.set_sharer(pid);
+        dir.state = CACHE_STATE::SHARED;
     }
-    return result;
-}
 
-/* ===================================================================== */
-template <class SET, class CACHE>
-INT32 DIR_MSI<SET, CACHE>::dirTransaction(DIR_ACTION type, CACHE_TAG tag, INT32 destination)
-{
-    INT32 cost = 0;
-    if ( this->mypid == destination)
-        cost = COST_LOCAL_MISS;
-    else
-        cost = COST_REMOTE_MISS;
-
-    SET *set = this->map[destination]->getSET(tag);
-    switch (type)
-    {
-      case READ_MISS:
-        this->map[destination]->coherence->ReadMiss(tag, this->mypid);
-        break;
-
-      case WRITE_MISS:
-        this->map[destination]->coherence->WriteMiss(tag, this->mypid);
-        break;
-
-      case INVALIDATE:
-        this->map[destination]->coherence->Invalidate(set, tag);
-        break;
-
-      case FETCH:
-        this->map[destination]->coherence->Fetch(set, tag);
-        break;
-
-
-      case FETCH_INVALIDATE:
-        this->map[destination]->coherence->FetchAndInvalidate(set, tag);
-        break;
-
-      default:
-        break;
-    }
     return cost;
 }
+
+// on a processor write with SHARED/MODIFIED
+INT32 DIR_MSI::fetch_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response)
+{
+    INT32 cost = get_directory_cost(pid, home);
+    Directory_Line &dir = get_directory_line(tag);
+    assert(dir.state != CACHE_STATE::INVALID);
+
+    // fetch up-to-date data
+    if (dir.is_set(pid))  // requesting node is sharer/owner, state changes to MODIFIED
+    {
+        response = CACHE_HIT;
+        cost += LOCAL_CACHE_ACCESS;
+    }
+    else  // requesting node is not sharer/owner
+    {
+        response = CACHE_MISS;
+        UINT32 owner = dir.owner(_num_processors);
+        cost += MEMORY_ACCESS + (dir.state == CACHE_STATE::MODIFIED ? data_write_back(owner, home) : 0);
+    }
+
+    // invalidate other sharers and claim ownership
+    dir.sharer_vector = 0;
+    dir.set_sharer(pid);
+    dir.state = CACHE_STATE::MODIFIED;
+
+    return cost;
+}
+
+// on a processor read with INVALID
+INT32 DIR_MSI::read_miss(UINT32 pid, UINT32 home, UINT64 tag)
+{
+    INT32 cost = get_directory_cost(pid, home) + MEMORY_ACCESS;
+    Directory_Line &dir = get_directory_line(tag);
+    assert(dir.state == CACHE_STATE::INVALID);
+
+    dir.state = CACHE_STATE::SHARED;
+    dir.set_sharer(pid);
+
+    return cost;
+}
+
+// on a processor write with INVALID
+INT32 DIR_MSI::write_miss(UINT32 pid, UINT32 home, UINT64 tag)
+{
+    INT32 cost = get_directory_cost(pid, home) + MEMORY_ACCESS;
+    Directory_Line &dir = get_directory_line(tag);
+    assert(dir.state == CACHE_STATE::INVALID);
+
+    dir.state = CACHE_STATE::MODIFIED;
+    dir.set_sharer(pid);
+
+    return cost;
+}
+
+// processor read handler
+void DIR_MSI::process_read(UINT32  pid, UINT64 tag, UINT32 set_index)
+{
+    INT32 cost = 0;
+    HIT_MISS_TYPES response = CACHE_MISS;
+
+    UINT32 home = get_home_node(tag);
+    CACHE_STATE state = get_directory_line(tag).state;
+
+    switch (state)
+    {
+        case CACHE_STATE::MODIFIED:
+        case CACHE_STATE::SHARED:
+            cost = fetch(pid, home, tag, response);
+            break;
+
+        case CACHE_STATE::INVALID:
+            cost = read_miss(pid, home, tag);
+            break;
+        default:
+            break;
+    }
+
+    profiles[pid]._access[0][response]++;
+    profiles[pid]._cycle[0][response] += cost;
+    profiles[pid]._cost += cost;
+};
+
+// processor write handler
+void DIR_MSI::process_write(UINT32  pid, UINT64  tag, UINT32  set_index)
+{
+    INT32 cost = 0;
+    HIT_MISS_TYPES response = CACHE_MISS;
+
+    UINT32 home = get_home_node(tag);
+    CACHE_STATE state = get_directory_line(tag).state;
+
+    switch (state)
+    {
+        case CACHE_STATE::MODIFIED:
+        case CACHE_STATE::SHARED:
+            response = CACHE_HIT;
+            cost = fetch_and_invalidate(pid, home, tag, response);
+            break;
+
+        case CACHE_STATE::INVALID:
+            cost = write_miss(pid, home, tag);
+            break;
+        default:
+            break;
+    }
+
+    profiles[pid]._access[1][response]++;
+    profiles[pid]._cycle[1][response] += cost;
+    profiles[pid]._cost += cost;
+}
+
+#endif // _COHERENCE_H_

@@ -7,6 +7,8 @@
 /*! @file
  *  This file contains an ISA-portable cache simulator
  */
+#include "pin.H"
+#include "callbacks.H"
 
 #include <assert.h>
 #include <cstdio>
@@ -16,8 +18,6 @@
 #include <iomanip>
 #include <set>
 
-#include "pin.H"
-#include "callbacks.H"
 
 
 /* ===================================================================== */
@@ -85,7 +85,7 @@ LOCALFUN void init_configuration()
         exit(-1);
     }
 
-    ASSERTX((l1_config.num_sets <= MAX_SETS) && (l1_config.set_size <= MAX_ASSOCIATIVITY));
+    // ASSERTX((l1_config.num_sets <= MAX_SETS) && (l1_config.set_size <= MAX_ASSOCIATIVITY));
     cerr << cache_config_string(l1_config) << endl;
 }
 
@@ -114,26 +114,20 @@ void Instruction(INS ins, void *v)
     {
         if (INS_MemoryOperandIsRead(ins, memOp))
         {
-            if( catch_all_config.track_loads )
-            {
-                INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE, (AFUNPTR) cache_load,
-                    IARG_THREAD_ID,
-                    IARG_MEMORYREAD_EA,
-                    IARG_END);
-            }
-        } // End memory read
+            INS_InsertPredicatedCall(
+                ins, IPOINT_BEFORE, (AFUNPTR) cache_load,
+                IARG_THREAD_ID,
+                IARG_MEMORYREAD_EA,
+                IARG_END);
+        }
 
         if (INS_MemoryOperandIsWritten(ins, memOp))
         {
-            if( catch_all_config.track_stores )
-            {
-                INS_InsertPredicatedCall(
-                    ins, IPOINT_BEFORE, (AFUNPTR) cache_store,
-                    IARG_THREAD_ID,
-                    IARG_MEMORYWRITE_EA,
-                    IARG_END);
-            }
+            INS_InsertPredicatedCall(
+                ins, IPOINT_BEFORE, (AFUNPTR) cache_store,
+                IARG_THREAD_ID,
+                IARG_MEMORYWRITE_EA,
+                IARG_END);
         }
     }
 }

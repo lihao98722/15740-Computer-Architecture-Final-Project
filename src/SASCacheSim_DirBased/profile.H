@@ -1,6 +1,9 @@
-/* ===================================================================== */
-/*  @brief Generic profile class;                                        */
-/* ===================================================================== */
+// #pragma once
+
+#include <iostream>
+#include <sstream>
+#include <iomanip>
+#include <string>
 
 typedef enum
 {
@@ -13,32 +16,20 @@ typedef enum
 {
     CACHE_MISS = 0,
     CACHE_HIT,
-    COHERENCE_MISS,
-    HIT_MISS_TYPES_NUM
 }HIT_MISS_TYPES;
 
 class Profile
 {
 public:
-    Profile(UINT32      cacheSize,
-            UINT32      lineSize,
-            UINT32      associativity)
-          : _cacheSize(cache_size),
-            _lineSize(line_size),
-            _associativity(associativity)
+    Profile()
     {
-        ASSERTX(IsPower2(_lineSize));
-        ASSERTX(IsPower2(_setIndexMask + 1));
-
         for (UINT32 accessType = 0; accessType < ACCESS_TYPE_NUM; ++accessType)
         {
             _access[accessType][CACHE_HIT] = 0;
             _access[accessType][CACHE_MISS] = 0;
-            _access[accessType][COHERENCE_MISS] = 0;
 
             _cycle[accessType][CACHE_HIT] = 0;
             _cycle[accessType][CACHE_MISS] = 0;
-            _cycle[accessType][COHERENCE_MISS] = 0;
         }
 
         _cost = 0;
@@ -81,15 +72,9 @@ public:
     }
 
     /* ===================================================================== */
-    inline UINT64 CoherenceMissCycles(ACCESS_TYPE accessType) const
-    {
-        return _cycle[accessType][COHERENCE_MISS];
-    }
-
-    /* ===================================================================== */
     inline UINT64 TotalCycles(ACCESS_TYPE accessType) const
     {
-        return HitCycles(accessType) + MissCycles(accessType) + CoherenceMissCycles(accessType);
+        return HitCycles(accessType) + MissCycles(accessType);
     }
 
     /* ===================================================================== */
@@ -101,7 +86,7 @@ public:
     /* ===================================================================== */
     inline UINT64 TotalMissCycles() const
     {
-        return SumCycle(CACHE_MISS) + SumCycle(COHERENCE_MISS);
+        return SumCycle(CACHE_MISS);
     }
 
     /* ===================================================================== */
@@ -117,15 +102,9 @@ public:
     }
 
     /* ===================================================================== */
-    inline UINT64 CoherenceMisses(ACCESS_TYPE accessType) const
-    {
-        return _access[accessType][COHERENCE_MISS];
-    } // Adrian Perez
-
-    /* ===================================================================== */
     inline UINT64 Accesses(ACCESS_TYPE accessType) const
     {
-        return Hits(accessType) + Misses(accessType) + CoherenceMisses(accessType);
+        return Hits(accessType) + Misses(accessType);
     }
 
     /* ===================================================================== */
@@ -147,7 +126,7 @@ public:
     }
 
     /* ===================================================================== */
-    inline std::string StatsLong(string prefix) const
+    inline std::string StatsLong(std::string prefix) const
     {
         std::stringstream out;
         out << prefix << std::setw(25) << std::left << " "
@@ -160,7 +139,7 @@ public:
         {
             const ACCESS_TYPE accessType = ACCESS_TYPE(i);
 
-            std::string type(accessType == ACCESS_TYPE_LOAD ? "Load" : "Store");
+            std::string type(accessType == LOAD ? "Load" : "Store");
 
             out << prefix << std::setw(25) << std::left << (type + "-Hits")
                           << std::setw(15) << std::left << Hits(accessType)
@@ -173,12 +152,6 @@ public:
                           << std::setw(15) << std::left << (100.0 * Misses(accessType) / Accesses(accessType))
                           << std::setw(15) << std::left << MissCycles(accessType)
                           << std::setw(10) << std::left << (100.0 * MissCycles(accessType) / TotalCycles(accessType)) << "\n";
-
-            out << prefix << std::setw(25) << std::left << (type + "-Coherence Misses:")
-                          << std::setw(15) << std::left << CoherenceMisses(accessType)
-                          << std::setw(15) << std::left << (100.0 * CoherenceMisses(accessType) / Accesses(accessType))
-                          << std::setw(15) << std::left << CoherenceMissCycles(accessType)
-                          << std::setw(10) << std::left << (100.0 * CoherenceMissCycles(accessType) / TotalCycles(accessType)) << "\n";
 
             out << prefix << std::setw(25) << std::left << (type + "-Total Accesses:")
                           << std::setw(15) << std::left << Accesses(accessType)
@@ -208,14 +181,8 @@ public:
         return out.str();
     }
 
-private:
-    static inline bool IsPower2(UINT32 n)
-    {
-        return ((n & (n - 1)) == 0);
-    }
-
 public:
-    UINT64  _access[ACCESS_TYPE_NUM][HIT_MISS_NUM];
-    UINT64  _cycle[ACCESS_TYPE_NUM][HIT_MISS_NUM];
+    UINT64  _access[ACCESS_TYPE_NUM][2];
+    UINT64  _cycle[ACCESS_TYPE_NUM][2];
     UINT64  _cost;
 };
