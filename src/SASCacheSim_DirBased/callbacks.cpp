@@ -5,7 +5,6 @@
 /*! @file
  *  This file contains callback routines for cache simulator
  */
-
 #include "callbacks.H"
 
 extern KNOB<string> KnobOutputFile;
@@ -25,25 +24,28 @@ std::unordered_map<ADDRINT, Stat> _mem;
 /* Global Variables */
 /* ===================================================================== */
 Controller * controller = nullptr;
-std::map<UINT32, UINT32> t_map;    // Mapping which Thread Belongs to Which processor
+std::unordered_map<UINT32, UINT32> t_map;    // Mapping which Thread Belongs to Which processor
 UINT32 active_threads = 0;
 UINT32 nextPID = 0;
-// INT32 totalBitsToShift;
 UINT32 pow2processors;
 
 int lock_id = 1;
 PIN_LOCK mapLock;
 
+
+
 /* ===================================================================== */
 UINT32 get_pid(UINT32 tid)
 {
-    std::map<UINT32, UINT32>::iterator t_map_it = t_map.find(tid);
+    auto t_map_it = t_map.find(tid);
     return t_map_it->second;
 }
 
 /* ===================================================================== */
 VOID cache_load(UINT32 tid, ADDRINT pin_addr)
 {
+    // std::cout << "cache load" << std::endl;
+
     PIN_GetLock(&mapLock, lock_id++);
     UINT64 addr = reinterpret_cast<UINT64>(pin_addr);
     UINT32 pid = get_pid(tid);
@@ -55,6 +57,8 @@ VOID cache_load(UINT32 tid, ADDRINT pin_addr)
 /* ===================================================================== */
 VOID cache_store(UINT32 tid, ADDRINT pin_addr)
 {
+    // std::cout << "cache store" << std::endl;
+
     PIN_GetLock(&mapLock, lock_id++);
     UINT64 addr = reinterpret_cast<UINT64>(pin_addr);
     UINT32 pid = get_pid(tid);
@@ -79,6 +83,8 @@ inline UINT32 get_next_pid()
 /* ===================================================================== */
 void process_attach()
 {
+    // std::cout << "process attach" << std::endl;
+
     pow2processors = l1_config.total_processors;
     controller = new Controller(l1_config.total_processors,
                                 l1_config.num_sets,
@@ -106,25 +112,25 @@ VOID thread_attach()
     auto temp_tid = get_current_tid();
     auto temp_pid = get_next_pid();
     std::cout << "tid " << temp_tid << " -> " << "pid " << temp_pid << std::endl;
-    (VOID)t_map.insert(std::pair<UINT32, UINT32>(temp_tid, temp_pid));
+    t_map[temp_tid] = temp_pid;
 }
 
 VOID thread_detach()
 {
     auto tid = get_current_tid();
-    std::map<UINT32, UINT32>::iterator t_map_it = t_map.find(tid);
+    auto t_map_it = t_map.find(tid);
     if (t_map_it != t_map.end())
     {
         (VOID)t_map.erase(t_map_it);
     }
 }
 
-void increaseLoad(ADDRINT addr)
+void increase_load(ADDRINT addr)
 {
     ++_mem[addr].loads;
 }
 
-void increaseStore(ADDRINT addr)
+void increase_store(ADDRINT addr)
 {
     ++_mem[addr].stores;
 }

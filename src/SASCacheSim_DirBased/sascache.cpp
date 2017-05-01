@@ -9,6 +9,7 @@
  */
 #include "pin.H"
 #include "callbacks.H"
+#include "cache.H"
 
 #include <assert.h>
 #include <cstdio>
@@ -65,13 +66,13 @@ INT32 usage()
 std::string cache_config_string(CACHE_CONFIG cache)
 {
     std::stringstream out;
-    out << std::setw(20) << "number of set: "   << cache.num_sets                    << "\n"
-        << std::setw(20) << "associativity: "   << cache.set_size                    << "\n"
-        << std::setw(20) << "line size: "       << cache.line_size                   << "\n"
-        << std::setw(20) << "write_strategy: "  << "WRITE_BACK_ALLOCATE"             << "\n"
-        << std::setw(20) << "coherence: "       << "MSI"                             << "\n"
-        << std::setw(20) << "interconnect: "    << "Directory"                       << "\n"
-        << std::setw(20) << "Total Processors: "<< l1_config.total_processors << "\n";
+    out << std::setw(20) << "number of set: "   << cache.num_sets         << "\n"
+        << std::setw(20) << "associativity: "   << cache.set_size         << "\n"
+        << std::setw(20) << "line size: "       << cache.line_size        << "\n"
+        << std::setw(20) << "write_strategy: "  << "WRITE_BACK_ALLOCATE"  << "\n"
+        << std::setw(20) << "coherence: "       << "MSI"                  << "\n"
+        << std::setw(20) << "interconnect: "    << "Directory"            << "\n"
+        << std::setw(20) << "Total Processors: "<< cache.total_processors << "\n";
     return out.str();
 }
 
@@ -85,7 +86,6 @@ LOCALFUN void init_configuration()
         exit(-1);
     }
 
-    // ASSERTX((l1_config.num_sets <= MAX_SETS) && (l1_config.set_size <= MAX_ASSOCIATIVITY));
     cerr << cache_config_string(l1_config) << endl;
 }
 

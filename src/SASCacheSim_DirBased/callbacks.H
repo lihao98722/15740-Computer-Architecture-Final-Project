@@ -6,17 +6,11 @@
 #include <fstream>
 #include <list>
 #include <unordered_map>
-#include <map>
+// #include <map>
 #include <vector>
 
 #include "pin.H"
 #include "cache.H"
-// #include "coherence.H"
-
-#define THREAD_ATTACH   1
-#define THREAD_DETACH   2
-#define PROCESS_ATTACH  3
-#define PROCESS_DETACH  4
 
 typedef struct
 {
