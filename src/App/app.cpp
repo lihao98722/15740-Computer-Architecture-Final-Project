@@ -70,7 +70,7 @@ inline void pin(int i, std::thread &th)
 int main()
 {
     // int nthreads = static_cast<int>(std::thread::hardware_concurrency() / 2 - 1);
-    std::cout << "app start" << std::endl;
+    // std::cout << "app start" << std::endl;
     int nthreads = 3;
     std::vector<std::thread> ths(nthreads);
     data = new DATA_T(10086);
