@@ -1,5 +1,6 @@
 # MAC OSX
 .DS_Store
+obj-intel64/
 
 ## Core latex/pdflatex auxiliary files:
 *.aux
