@@ -52,11 +52,20 @@ INT32 DIR_MSI::fetch_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MIS
         }
     }
 
-    // invalidate other sharers and claim ownership
-    dir.sharer_vector = 0;
-    dir.set_sharer(pid);
-    dir.state = CACHE_STATE::MODIFIED;
-
+    if (proposed)
+    {
+        for (auto i = 0; i < _num_processors; ++i)
+        {
+            dir.set_sharer(i);
+        }
+        dir.state = CACHE_STATE::SHARED;
+    }else
+    {
+        // invalidate other sharers and claim ownership
+        dir.sharer_vector = 0;
+        dir.set_sharer(pid);
+        dir.state = CACHE_STATE::MODIFIED;
+    }
     return cost;
 }
 
@@ -80,14 +89,23 @@ INT32 DIR_MSI::write_miss(UINT32 pid, UINT32 home, UINT64 tag)
     Directory_Line &dir = get_directory_line(tag);
     assert(dir.state == CACHE_STATE::INVALID);
 
-    dir.state = CACHE_STATE::MODIFIED;
-    dir.set_sharer(pid);
-
+    if (proposed)
+    {
+        for (auto i = 0; i < _num_processors; ++i)
+        {
+            dir.set_sharer(i);
+        }
+        dir.state = CACHE_STATE::SHARED;
+    }else
+    {
+        dir.state = CACHE_STATE::MODIFIED;
+        dir.set_sharer(pid);
+    }
     return cost;
 }
 
 // processor read handler
-void DIR_MSI::process_read(UINT32  pid, UINT64 tag, UINT32 set_index)
+void DIR_MSI::process_read(UINT32  pid, UINT64 addr, UINT64 tag, UINT32 set_index)
 {
     INT32 cost = 0;
     HIT_MISS_TYPES response = CACHE_MISS;
@@ -112,10 +130,17 @@ void DIR_MSI::process_read(UINT32  pid, UINT64 tag, UINT32 set_index)
     profiles[pid]._access[0][response]++;
     profiles[pid]._cycle[0][response] += cost;
     profiles[pid]._cost += cost;
+    if (response == CACHE_MISS) {
+        ++line_stat[addr].load.miss;
+    }else
+    {
+        ++line_stat[addr].load.hit;
+    }
+    ++line_stat[addr].count;
 };
 
 // processor write handler
-void DIR_MSI::process_write(UINT32  pid, UINT64  tag, UINT32  set_index)
+void DIR_MSI::process_write(UINT32  pid, UINT64 addr, UINT64 tag, UINT32  set_index)
 {
     INT32 cost = 0;
     HIT_MISS_TYPES response = CACHE_MISS;
@@ -141,4 +166,11 @@ void DIR_MSI::process_write(UINT32  pid, UINT64  tag, UINT32  set_index)
     profiles[pid]._access[1][response]++;
     profiles[pid]._cycle[1][response] += cost;
     profiles[pid]._cost += cost;
+    if (response == CACHE_MISS) {
+        ++line_stat[addr].store.miss;
+    }else
+    {
+        ++line_stat[addr].store.hit;
+    }
+    ++line_stat[addr].count;
 }

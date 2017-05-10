@@ -73,9 +73,10 @@ public:
     DIR_MSI(UINT32 num_processors): _num_processors(num_processors)
     {
         profiles = std::vector<Profile>(num_processors, Profile());
+        proposed = true;
     }
-    void process_read(UINT32 pid, UINT64 tag, UINT32 set_index);
-    void process_write(UINT32 pid, UINT64 tag, UINT32 set_index);
+    void process_read(UINT32 pid, UINT64 addr, UINT64 tag, UINT32 set_index);
+    void process_write(UINT32 pid, UINT64 addr, UINT64 tag, UINT32 set_index);
 
     INT32 fetch(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response);
     INT32 fetch_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response);
@@ -106,8 +107,25 @@ public:
         return _directory[tag];
     }
 
+    inline std::string stat_to_string()
+    {
+        std::stringstream ss;
+        ss << "Memory Stats:\n";
+        ss << "\t\tAddr\tLoad Hit\tLoad Miss\tStore Hit\tStore Miss\n";
+        for (const auto& p : line_stat)
+        {
+            if (p.second.count <= THRESHOLD) {continue;}
+            ss << std::hex << p.first << std::dec << "\t"
+               << p.second.load.hit << "\t" << p.second.load.miss << "\t"
+               << p.second.store.hit << "\t"<< p.second.store.miss << "\n";
+        }
+        return ss.str();
+    }
+
 public:
     std::vector<Profile> profiles;
+    std::unordered_map<uint64_t, Access_Stat> line_stat;
     std::unordered_map<UINT64, Directory_Line>  _directory;
     UINT32  _num_processors;
+    bool proposed;
 };
