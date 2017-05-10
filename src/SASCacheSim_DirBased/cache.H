@@ -169,24 +169,21 @@ public:
 
     void store_single_line(UINT64 addr, UINT32 pid)
     {
-        // std::cout << "store pid :" << pid << std::endl;
         UINT64 tag = get_tag(addr);
         UINT32 index = get_set_index(addr);
-
         cache[pid].fetch_cache_line(tag, index);
-        coherence->process_write(pid, tag, index);
+        coherence->process_write(pid, addr, tag, index);
     }
 
     void load_single_line(UINT64 addr, UINT32 pid)
     {
-        // std::cout << "load pid :" << pid << std::endl;
         UINT64 tag = get_tag(addr);
         UINT32 index = get_set_index(addr);
         cache[pid].fetch_cache_line(tag, index);
-        coherence->process_read(pid, tag, index);
+        coherence->process_read(pid, addr, tag, index);
     }
 
-    std::string stat_to_string()
+    inline std::string stat_to_string()
     {
         std::stringstream ss;
         // skip main process, starting from thread 1 since thread0 is the main application
@@ -195,6 +192,7 @@ public:
             ss << "+ Processor: " << i << " L1 Data Cache" << std::endl;
             ss << coherence->profiles[i].StatsLong("+ ") << std::endl;
         }
+        ss << coherence->stat_to_string() << std::endl;
         return ss.str();
     }
 

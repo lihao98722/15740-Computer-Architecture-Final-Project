@@ -11,15 +11,6 @@ extern KNOB<string> KnobOutputFile;
 extern KNOB<BOOL>   KnobNoSharedLibs;
 extern CACHE_CONFIG l1_config;
 
-class Stat
-{
-public:
-    UINT64 loads = 0;
-    UINT64 stores = 0;
-};
-
-std::unordered_map<ADDRINT, Stat> _mem;
-
 /* ===================================================================== */
 /* Global Variables */
 /* ===================================================================== */
@@ -45,12 +36,10 @@ UINT32 get_pid(UINT32 tid)
 VOID cache_load(UINT32 tid, ADDRINT pin_addr)
 {
     // std::cout << "cache load" << std::endl;
-
     PIN_GetLock(&mapLock, lock_id++);
     UINT64 addr = reinterpret_cast<UINT64>(pin_addr);
     UINT32 pid = get_pid(tid);
     controller->load_single_line(addr, pid);
-    increase_load(pin_addr);
     PIN_ReleaseLock(&mapLock);
 }
 
@@ -58,12 +47,10 @@ VOID cache_load(UINT32 tid, ADDRINT pin_addr)
 VOID cache_store(UINT32 tid, ADDRINT pin_addr)
 {
     // std::cout << "cache store" << std::endl;
-
     PIN_GetLock(&mapLock, lock_id++);
     UINT64 addr = reinterpret_cast<UINT64>(pin_addr);
     UINT32 pid = get_pid(tid);
     controller->store_single_line(addr, pid);
-    increase_store(pin_addr);
     PIN_ReleaseLock(&mapLock);
 }
 
@@ -101,7 +88,6 @@ VOID process_detach()
 {
     std::ofstream out(KnobOutputFile.Value().c_str());
     out << controller->stat_to_string();
-    out << stat_to_string();
     delete controller;
     out.close();
 }
@@ -123,26 +109,4 @@ VOID thread_detach()
     {
         (VOID)t_map.erase(t_map_it);
     }
-}
-
-void increase_load(ADDRINT addr)
-{
-    ++_mem[addr].loads;
-}
-
-void increase_store(ADDRINT addr)
-{
-    ++_mem[addr].stores;
-}
-
-std::string stat_to_string()
-{
-    std::stringstream ss;
-    ss << "Memory Stats:\n";
-    ss << "Addr\tLoads\tStores\n";
-    for (const auto& p : _mem)
-    {
-        ss << hexstr(p.first,8) << "\t" << p.second.loads << "\t" << p.second.stores << "\n";
-    }
-    return ss.str();
 }

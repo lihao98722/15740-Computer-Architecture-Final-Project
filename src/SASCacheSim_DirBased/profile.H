@@ -18,6 +18,25 @@ typedef enum
     CACHE_HIT,
 }HIT_MISS_TYPES;
 
+const uint64_t THRESHOLD = 10;
+
+class Stat
+{
+public:
+    Stat(): hit(0), miss(0), cycle(0) {}
+    uint64_t hit = 0;
+    uint64_t miss = 0;
+    uint64_t cycle = 0;
+};
+
+class Access_Stat
+{
+public:
+    Stat load;
+    Stat store;
+    uint64_t count = 0;
+};
+
 class Profile
 {
 public:
@@ -180,6 +199,8 @@ public:
 
         return out.str();
     }
+
+
 
 public:
     UINT64  _access[ACCESS_TYPE_NUM][2];
