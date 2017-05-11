@@ -35,32 +35,32 @@ public:
         state = CACHE_STATE::INVALID;
     }
 
-    bool is_set(UINT32 pid)
+    inline bool is_set(uint32_t pid)
     {
         return sharer_vector & (1 << pid);
     }
 
-    UINT32 owner(UINT32 num_processors)
+    inline uint32_t owner(uint32_t num_processors)
     {
-        UINT32 pid = 0;
+        uint32_t pid = 0;
         for (; !is_set(pid) && (pid < num_processors); ++pid);
         assert(pid != num_processors);
         assert(state == CACHE_STATE::MODIFIED);
         return pid;
     }
 
-    void set_sharer(UINT32 pid)
+    inline void set_sharer(uint32_t pid)
     {
         sharer_vector |= (1 << pid);
     }
 
-    void clear_sharer(UINT32 pid)
+    inline void clear_sharer(uint32_t pid)
     {
         sharer_vector &= (~(1 << pid));
     }
 
 public:
-    UINT32  sharer_vector;
+    uint32_t  sharer_vector;
     CACHE_STATE  state;
 };
 
@@ -70,34 +70,36 @@ public:
 class DIR_MSI
 {
 public:
-    DIR_MSI(UINT32 num_processors): _num_processors(num_processors)
+    DIR_MSI(uint32_t num_processors): _num_processors(num_processors)
     {
         profiles = std::vector<Profile>(num_processors, Profile());
         proposed = true;
     }
-    void process_read(UINT32 pid, UINT64 addr, UINT64 tag, UINT32 set_index);
-    void process_write(UINT32 pid, UINT64 addr, UINT64 tag, UINT32 set_index);
+    void process_read(uint32_t pid, uint64_t addr, uint64_t tag);
+    void process_write(uint32_t pid, uint64_t addr, uint64_t tag);
 
-    INT32 fetch(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response);
-    INT32 fetch_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response);
-    INT32 read_miss(UINT32 pid, UINT32 home, UINT64 tag);
-    INT32 write_miss(UINT32 pid, UINT32 home, UINT64 tag);
-    INT32 data_write_back(UINT32 pid, UINT32 home)
+    int32_t fetch(uint32_t pid, uint32_t home, uint64_t tag, HIT_MISS_TYPES &response);
+    int32_t fetch_and_invalidate(uint32_t pid, uint32_t home, uint64_t tag, HIT_MISS_TYPES &response);
+    int32_t read_miss(uint32_t pid, uint32_t home, uint64_t tag);
+    int32_t write_miss(uint32_t pid, uint32_t home, uint64_t tag);
+    void invalidate(uint32_t pid, uint64_t tag);
+
+    inline int32_t data_write_back(uint32_t pid, uint32_t home)
     {
         return get_directory_cost(pid, home) + MEMORY_ACCESS;
     }
 
-    inline UINT32 get_home_node(UINT64 tag)
+    inline uint32_t get_home_node(uint64_t tag)
     {
         return tag & (_num_processors -1);
     }
 
-    inline INT32 get_directory_cost(UINT32 src, UINT32 dest)
+    inline int32_t get_directory_cost(uint32_t src, uint32_t dest)
     {
         return (src == dest) ? LOCAL_CACHE_ACCESS : REMOTE_CACHE_ACCESS;
     }
 
-    inline Directory_Line & get_directory_line(UINT64 tag)
+    inline Directory_Line & get_directory_line(uint64_t tag)
     {
         auto it = _directory.find(tag);
         if (it == _directory.end())
@@ -125,7 +127,7 @@ public:
 public:
     std::vector<Profile> profiles;
     std::unordered_map<uint64_t, Access_Stat> line_stat;
-    std::unordered_map<UINT64, Directory_Line>  _directory;
-    UINT32  _num_processors;
+    std::unordered_map<uint64_t, Directory_Line>  _directory;
+    uint32_t  _num_processors;
     bool proposed;
 };

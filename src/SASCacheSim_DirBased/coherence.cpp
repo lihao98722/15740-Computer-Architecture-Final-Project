@@ -1,12 +1,13 @@
 #include "coherence.H"
 
 // on a processor read with SHARED/MODIFIED
-INT32 DIR_MSI::fetch(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response)
+int32_t DIR_MSI::fetch(uint32_t pid, uint32_t home, uint64_t tag, HIT_MISS_TYPES &response)
 {
-    INT32 cost = get_directory_cost(pid, home);
+    int32_t cost = get_directory_cost(pid, home);
     Directory_Line &dir = get_directory_line(tag);
     assert(dir.state != CACHE_STATE::INVALID);
 
+    // fetch up-to-date data
     if (dir.is_set(pid))  // requesting node is sharer/owner, no state change
     {
         response = CACHE_HIT;
@@ -18,48 +19,43 @@ INT32 DIR_MSI::fetch(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &respon
         cost += MEMORY_ACCESS;
         if (dir.state == CACHE_STATE::MODIFIED)
         {
-            UINT32 owner = dir.owner(_num_processors);
+            uint32_t owner = dir.owner(_num_processors);
             cost += data_write_back(owner, home);
         }
-        dir.set_sharer(pid);
-        dir.state = CACHE_STATE::SHARED;
     }
+
+    dir.set_sharer(pid);
+    dir.state = CACHE_STATE::SHARED;
 
     return cost;
 }
 
-// on a processor write with SHARED/MODIFIED
-INT32 DIR_MSI::fetch_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response)
+void DIR_MSI::invalidate(uint32_t pid, uint64_t tag)
 {
-    INT32 cost = get_directory_cost(pid, home);
+    Directory_Line &dir = get_directory_line(tag);
+    dir.clear_sharer(pid);
+    if (dir.sharer_vector == 0) // no sharers
+    {
+        dir.state = CACHE_STATE::INVALID;
+    }
+}
+
+// on a processor write with SHARED/MODIFIED
+int32_t DIR_MSI::fetch_and_invalidate(uint32_t pid, uint32_t home, uint64_t tag, HIT_MISS_TYPES &response)
+{
+    int32_t cost = fetch(pid, home, tag, response);
     Directory_Line &dir = get_directory_line(tag);
     assert(dir.state != CACHE_STATE::INVALID);
 
-    // fetch up-to-date data
-    if (dir.is_set(pid))  // requesting node is sharer/owner, state changes to MODIFIED
-    {
-        response = CACHE_HIT;
-        cost += LOCAL_CACHE_ACCESS;
-    }
-    else  // requesting node is not sharer/owner
-    {
-        response = CACHE_MISS;
-        cost += MEMORY_ACCESS;
-        if (dir.state == CACHE_STATE::MODIFIED)
-        {
-            UINT32 owner = dir.owner(_num_processors);
-            cost += data_write_back(owner, home);
-        }
-    }
-
     if (proposed)
     {
-        for (auto i = 0; i < _num_processors; ++i)
+        for (uint32_t i = 0; i < _num_processors; ++i)
         {
             dir.set_sharer(i);
         }
         dir.state = CACHE_STATE::SHARED;
-    }else
+    }
+    else
     {
         // invalidate other sharers and claim ownership
         dir.sharer_vector = 0;
@@ -70,7 +66,7 @@ INT32 DIR_MSI::fetch_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MIS
 }
 
 // on a processor read with INVALID
-INT32 DIR_MSI::read_miss(UINT32 pid, UINT32 home, UINT64 tag)
+int32_t DIR_MSI::read_miss(uint32_t pid, uint32_t home, UINT64 tag)
 {
     INT32 cost = get_directory_cost(pid, home) + MEMORY_ACCESS;
     Directory_Line &dir = get_directory_line(tag);
@@ -83,34 +79,36 @@ INT32 DIR_MSI::read_miss(UINT32 pid, UINT32 home, UINT64 tag)
 }
 
 // on a processor write with INVALID
-INT32 DIR_MSI::write_miss(UINT32 pid, UINT32 home, UINT64 tag)
+int32_t DIR_MSI::write_miss(uint32_t pid, uint32_t home, uint64_t tag)
 {
-    INT32 cost = get_directory_cost(pid, home) + MEMORY_ACCESS;
+    int32_t cost = get_directory_cost(pid, home) + MEMORY_ACCESS;
     Directory_Line &dir = get_directory_line(tag);
     assert(dir.state == CACHE_STATE::INVALID);
 
     if (proposed)
     {
-        for (auto i = 0; i < _num_processors; ++i)
+        for (uint32_t i = 0; i < _num_processors; ++i)
         {
             dir.set_sharer(i);
         }
         dir.state = CACHE_STATE::SHARED;
-    }else
+    }
+    else
     {
-        dir.state = CACHE_STATE::MODIFIED;
+        dir.sharer_vector = 0;
         dir.set_sharer(pid);
+        dir.state = CACHE_STATE::MODIFIED;
     }
     return cost;
 }
 
 // processor read handler
-void DIR_MSI::process_read(UINT32  pid, UINT64 addr, UINT64 tag, UINT32 set_index)
+void DIR_MSI::process_read(uint32_t  pid, uint64_t addr, uint64_t tag)
 {
-    INT32 cost = 0;
+    int32_t cost = 0;
     HIT_MISS_TYPES response = CACHE_MISS;
 
-    UINT32 home = get_home_node(tag);
+    uint32_t home = get_home_node(tag);
     CACHE_STATE state = get_directory_line(tag).state;
 
     switch (state)
@@ -123,6 +121,7 @@ void DIR_MSI::process_read(UINT32  pid, UINT64 addr, UINT64 tag, UINT32 set_inde
         case CACHE_STATE::INVALID:
             cost = read_miss(pid, home, tag);
             break;
+
         default:
             break;
     }
@@ -132,7 +131,8 @@ void DIR_MSI::process_read(UINT32  pid, UINT64 addr, UINT64 tag, UINT32 set_inde
     profiles[pid]._cost += cost;
     if (response == CACHE_MISS) {
         ++line_stat[addr].load.miss;
-    }else
+    }
+    else
     {
         ++line_stat[addr].load.hit;
     }
@@ -140,12 +140,12 @@ void DIR_MSI::process_read(UINT32  pid, UINT64 addr, UINT64 tag, UINT32 set_inde
 };
 
 // processor write handler
-void DIR_MSI::process_write(UINT32  pid, UINT64 addr, UINT64 tag, UINT32  set_index)
+void DIR_MSI::process_write(uint32_t  pid, uint64_t addr, uint64_t tag)
 {
-    INT32 cost = 0;
+    int32_t cost = 0;
     HIT_MISS_TYPES response = CACHE_MISS;
 
-    UINT32 home = get_home_node(tag);
+    uint32_t home = get_home_node(tag);
     CACHE_STATE state = get_directory_line(tag).state;
 
     switch (state)
@@ -159,6 +159,7 @@ void DIR_MSI::process_write(UINT32  pid, UINT64 addr, UINT64 tag, UINT32  set_in
         case CACHE_STATE::INVALID:
             cost = write_miss(pid, home, tag);
             break;
+
         default:
             break;
     }
@@ -168,7 +169,8 @@ void DIR_MSI::process_write(UINT32  pid, UINT64 addr, UINT64 tag, UINT32  set_in
     profiles[pid]._cost += cost;
     if (response == CACHE_MISS) {
         ++line_stat[addr].store.miss;
-    }else
+    }
+    else
     {
         ++line_stat[addr].store.hit;
     }

@@ -1,6 +1,4 @@
 #pragma once
-// #ifndef CACHE_H
-// #define CACHE_H
 
 #include <sstream>
 #include <iostream>
@@ -8,9 +6,16 @@
 #include <iomanip>
 #include <vector>
 
-// #include "callbacks.H"
 #include "coherence.H"
 
+const uint64_t DEFAULT_TAG = ~0;
+
+enum class LOCAL_STATUS
+{
+    UNCACHED,
+    VALID,
+    INVALID
+};
 
 /* ===================================================================== */
 /*  @brief Cache Line - cache tag                                        */
@@ -18,15 +23,12 @@
 class Cache_Line
 {
 public:
-    Cache_Line()
-    {
-        lru = 0;
-        tag = 0;
-    }
+    Cache_Line(): lru(0), tag(DEFAULT_TAG), status(LOCAL_STATUS::UNCACHED){}
 
 public:
-    UINT64  lru;
-    UINT64  tag;
+    uint64_t lru;
+    uint64_t tag;
+    LOCAL_STATUS status;
 };
 
 /* ===================================================================== */
@@ -35,39 +37,39 @@ public:
 class Cache_Set
 {
 public:
-    Cache_Set(INT32 associativity)
-            : _associativity(associativity),
-              _current_index(0)
+    Cache_Set(int32_t associativity) : _associativity(associativity)
     {
         _lines = std::vector<Cache_Line>(associativity, Cache_Line());
-        std::cout << "lines: " << _lines.size() << std::endl;
     }
 
-    /* ===================================================================== */
-    void fetch(UINT64 tag)
+    // find cache line, return line status
+    inline LOCAL_STATUS fetch(uint64_t tag)
     {
-        // find cache line
         for (auto & _line : _lines)
         {
             if (_line.tag == tag)
             {
                 ++_line.lru;
-                return;
+                return _line.status;
             }
         }
+        return LOCAL_STATUS::UNCACHED;
+    }
 
-        // cache miss
-        auto index = _current_index;
-        if (index < 0)  // evict
+    // simulate fetching single cache line, return victim tag if evict triggered
+    uint64_t fetch_single_line(uint64_t tag)
+    {
+        LOCAL_STATUS status = fetch(tag);
+        uint64_t evict_tag = DEFAULT_TAG;
+
+        if (status == LOCAL_STATUS::UNCACHED)
         {
-            index = evict();
-        }
-        else // replace uncached line
-        {
-            if (++_current_index == _associativity)
-            {
-                _current_index = -1;
-            }
+            int32_t index = evict();
+            evict_tag = _lines[index].tag;
+
+            ++_lines[index].lru;
+            _lines[index].tag = tag;
+            _lines[index].status = LOCAL_STATUS::VALID;
         }
 
         #ifdef DEBUG
@@ -77,17 +79,16 @@ public:
         std::cout<< "lru: " << _lines[index].lru << std::endl;
         #endif
 
-        _lines[index].tag = tag;
-        ++_lines[index].lru;
+        return evict_tag;
     }
 
 private:
-    INT32 evict()
+    inline int32_t evict()
     {
-        UINT64 _min = _lines[0].lru;
-        INT32 _evict = 0;
+        uint64_t _min = _lines[0].lru;
+        int32_t _evict = 0;
 
-        for (UINT32 i = 1; i < _lines.size(); ++i)
+        for (uint32_t i = 1; i < _lines.size(); ++i)
         {
             if (_lines[i].lru < _min)
             {
@@ -100,10 +101,9 @@ private:
     }
 
 private:
-    INT32  _associativity;  // number of lines per cache set
-    INT32  _current_index;  // first uncached index
-
+    int32_t   _associativity;  // number of lines per cache set
     std::vector<Cache_Line>  _lines;
+
 };
 
 /* ===================================================================== */
@@ -112,25 +112,24 @@ private:
 class Cache
 {
 public:
-    Cache(UINT32 associativity, UINT32 num_sets)
+    Cache(uint32_t associativity, uint32_t num_sets)
         : _associativity(associativity),
           _num_sets(num_sets)
     {
         sets = std::vector<Cache_Set>(num_sets, Cache_Set(associativity));
-        // std::cout << "sets : " << sets.size() << std::endl;
     }
 
-    void fetch_cache_line(UINT64 tag, INT32 index)
+    inline uint64_t fetch_cache_line(uint64_t tag, INT32 index)
     {
-        sets[index].fetch(tag);
+        return sets[index].fetch_single_line(tag);
     }
 
 public:
     std::vector<Cache_Set>  sets;
 
 private:
-    UINT32  _associativity;
-    UINT32  _num_sets;
+    uint32_t  _associativity;
+    uint32_t  _num_sets;
 
 };
 
@@ -140,10 +139,10 @@ private:
 class Controller
 {
 public:
-    Controller(UINT32       num_processors,
-               UINT32       num_sets,
-               UINT32       line_size,
-               UINT32       associativity)
+    Controller(uint32_t       num_processors,
+               uint32_t       num_sets,
+               uint32_t       line_size,
+               uint32_t       associativity)
              : _num_processors(num_processors),
                _line_size(line_size)
     {
@@ -153,12 +152,14 @@ public:
         offset_num_bits = get_num_bits(line_size);
         set_index_num_bits = get_num_bits(num_sets);
 
-        tag_mask = (tag_mask << (offset_num_bits + set_index_num_bits));
-        offset_mask = ~(offset_mask << offset_num_bits);
+        // tag_mask = (tag_mask << (offset_num_bits + set_index_num_bits));
+        tag_mask = (0xFFFFFFFFFFFFFFFF << (offset_num_bits + set_index_num_bits));
+        // offset_mask = ~(offset_mask << offset_num_bits);
+        offset_mask = ~(0xFFFFFFFFFFFFFFFF << offset_num_bits);
 
         #ifdef DEBUG
-        std::cout<< "offset_num_bits: " << offset_num_bits << std::endl;
-        std::cout<< "set_index_num_bits: " << set_index_num_bits << std::endl;
+        std::cout << "offset_num_bits: " << offset_num_bits << std::endl;
+        std::cout << "set_index_num_bits: " << set_index_num_bits << std::endl;
         #endif
     }
 
@@ -167,30 +168,38 @@ public:
         delete coherence;
     }
 
-    void store_single_line(UINT64 addr, UINT32 pid)
+    inline void store_single_line(uint64_t addr, uint32_t pid)
     {
-        UINT64 tag = get_tag(addr);
-        UINT32 index = get_set_index(addr);
-        cache[pid].fetch_cache_line(tag, index);
-        coherence->process_write(pid, addr, tag, index);
+        uint64_t tag = get_tag(addr);
+        uint32_t index = get_set_index(addr);
+        uint64_t evict_tag = cache[pid].fetch_cache_line(tag, index);
+        if (evict_tag != DEFAULT_TAG)
+        {
+            coherence->invalidate(pid, evict_tag);
+        }
+        coherence->process_write(pid, addr, tag);
     }
 
-    void load_single_line(UINT64 addr, UINT32 pid)
+    inline void load_single_line(uint64_t addr, uint32_t pid)
     {
-        UINT64 tag = get_tag(addr);
-        UINT32 index = get_set_index(addr);
-        cache[pid].fetch_cache_line(tag, index);
-        coherence->process_read(pid, addr, tag, index);
+        uint64_t tag = get_tag(addr);
+        uint32_t index = get_set_index(addr);
+        uint64_t evict_tag = cache[pid].fetch_cache_line(tag, index);
+        if (evict_tag != DEFAULT_TAG)
+        {
+            coherence->invalidate(pid, evict_tag);
+        }
+        coherence->process_read(pid, addr, tag);
     }
 
     inline std::string stat_to_string()
     {
         std::stringstream ss;
         // skip main process, starting from thread 1 since thread0 is the main application
-        for (UINT32 i = 1; i < _num_processors; ++i)
+        for (uint32_t i = 0; i < _num_processors; ++i)
         {
             ss << "+ Processor: " << i << " L1 Data Cache" << std::endl;
-            ss << coherence->profiles[i].StatsLong("+ ") << std::endl;
+            ss << coherence->profiles[i].stats_to_string("+ ") << std::endl;
         }
         ss << coherence->stat_to_string() << std::endl;
         return ss.str();
@@ -198,21 +207,21 @@ public:
 
 private:
     // extract line information out of a memory address
-    inline UINT64 get_set_index(UINT64 addr)
+    inline uint64_t get_set_index(uint64_t addr)
     {
-        return (addr & (~tag_mask)) >> offset_num_bits;
+        return (addr & (~tag_mask)) >> (offset_num_bits);
     }
 
     // extract tag infomation out of a memory address
-    inline UINT64 get_tag(UINT64 addr)
+    inline uint64_t get_tag(uint64_t addr)
     {
         return (addr & tag_mask) >> (offset_num_bits + set_index_num_bits);
     }
 
-    // get the number of bits needed to represent 'num'
-    inline UINT32 get_num_bits(UINT64 num)
+    // get the number of bits needed to represent 'num', num is power of 2
+    inline uint32_t get_num_bits(uint64_t num)
     {
-        UINT32 num_bits = 0;
+        uint32_t num_bits = 0;
         for (; num > 0; num /= 2, ++num_bits);
         return num_bits - 1;
     }
@@ -222,15 +231,15 @@ public:
     std::vector<Cache>  cache;
 
 private:
-    UINT32  _num_processors;
-    UINT32  _cache_size;
-    UINT32  _line_size;
+    uint32_t  _num_processors;
+    uint32_t  _cache_size;
+    uint32_t  _line_size;
 
     // number of bits to shift for address elements
-    UINT32 offset_num_bits = 0;
-    UINT32 set_index_num_bits = 0;
+    uint32_t offset_num_bits;
+    uint32_t set_index_num_bits;
 
     // bit masks for address extraction
-    UINT64 tag_mask = ~0;
-    UINT64 offset_mask = ~0;
+    uint64_t tag_mask;
+    uint64_t offset_mask;
 };

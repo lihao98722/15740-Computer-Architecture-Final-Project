@@ -9,16 +9,16 @@ typedef enum
 {
     LOAD = 0,
     STORE,
-    ACCESS_TYPE_NUM,
+    ACCESS_TYPE_NUM
 }ACCESS_TYPE;
 
 typedef enum
 {
     CACHE_MISS = 0,
-    CACHE_HIT,
+    CACHE_HIT
 }HIT_MISS_TYPES;
 
-const uint64_t THRESHOLD = 10;
+const uint64_t THRESHOLD = 100;
 
 class Stat
 {
@@ -145,7 +145,7 @@ public:
     }
 
     /* ===================================================================== */
-    inline std::string StatsLong(std::string prefix) const
+    std::string stats_to_string(std::string prefix) const
     {
         std::stringstream out;
         out << prefix << std::setw(25) << std::left << " "
@@ -199,8 +199,6 @@ public:
 
         return out.str();
     }
-
-
 
 public:
     UINT64  _access[ACCESS_TYPE_NUM][2];
