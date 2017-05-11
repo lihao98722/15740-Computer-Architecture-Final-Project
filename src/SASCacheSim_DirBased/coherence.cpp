@@ -28,7 +28,7 @@ INT32 DIR_MSI::fetch(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &respon
     return cost;
 }
 
-// on a processor write with SHARED/MODIFIED
+// on a processor write with SHARED/MODIFIED ((without detector))
 INT32 DIR_MSI::fetch_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response)
 {
     INT32 cost = get_directory_cost(pid, home);
@@ -52,20 +52,63 @@ INT32 DIR_MSI::fetch_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MIS
         }
     }
 
-    if (proposed)
-    {
+    // invalidate other sharers and claim ownership
+    dir.sharer_vector = 0;
+    dir.set_sharer(pid);
+    dir.state = CACHE_STATE::MODIFIED;
+
+    return cost;
+}
+
+// on a processor write with SHARED/MODIFIED (with detector)
+INT32 DIR_MSI::push_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response)
+{
+    INT32 cost = get_directory_cost(pid, home);
+    Directory_Line &dir = get_directory_line(tag);
+    assert(dir.state != CACHE_STATE::INVALID);
+
+    // requesting node is the last writer
+    if (dir.is_last_writer(pid)) {
         for (auto i = 0; i < _num_processors; ++i)
         {
-            dir.set_sharer(i);
+            dir.decrease_read_count(i);
+            if (i != pid) {
+                if (dir.is_set(i) && dir.qualified_reader(pid)) {
+                    cost += CACHE_TO_CACHE;
+                } else {
+                    dir.clear_sharer(i);
+                }
+            }
         }
-        dir.state = CACHE_STATE::SHARED;
-    }else
-    {
-        // invalidate other sharers and claim ownership
-        dir.sharer_vector = 0;
-        dir.set_sharer(pid);
-        dir.state = CACHE_STATE::MODIFIED;
+        response = CACHE_HIT;
+        cost += LOCAL_CACHE_ACCESS;
     }
+    else
+    {
+        // requesting node is sharer/owner
+        if (dir.is_set(pid)) {
+            response = CACHE_HIT;
+            cost += LOCAL_CACHE_ACCESS;
+        }
+        // requesting node is not sharer/owner
+        else
+        {
+            response = CACHE_MISS;
+            cost += MEMORY_ACCESS;
+            if (dir.state == CACHE_STATE::MODIFIED)
+            {
+                UINT32 owner = dir.owner(_num_processors);
+                cost += data_write_back(owner, home);
+            }
+            // invalidate other sharers and claim ownership
+            dir.sharer_vector = 0;
+            dir.set_sharer(pid);
+        }
+        dir.update_last_writer(pid);
+    }
+
+    dir.state = CACHE_STATE::MODIFIED;
+
     return cost;
 }
 
@@ -88,19 +131,8 @@ INT32 DIR_MSI::write_miss(UINT32 pid, UINT32 home, UINT64 tag)
     INT32 cost = get_directory_cost(pid, home) + MEMORY_ACCESS;
     Directory_Line &dir = get_directory_line(tag);
     assert(dir.state == CACHE_STATE::INVALID);
-
-    if (proposed)
-    {
-        for (auto i = 0; i < _num_processors; ++i)
-        {
-            dir.set_sharer(i);
-        }
-        dir.state = CACHE_STATE::SHARED;
-    }else
-    {
-        dir.state = CACHE_STATE::MODIFIED;
-        dir.set_sharer(pid);
-    }
+    dir.state = CACHE_STATE::MODIFIED;
+    dir.set_sharer(pid);
     return cost;
 }
 
@@ -111,7 +143,11 @@ void DIR_MSI::process_read(UINT32  pid, UINT64 addr, UINT64 tag, UINT32 set_inde
     HIT_MISS_TYPES response = CACHE_MISS;
 
     UINT32 home = get_home_node(tag);
-    CACHE_STATE state = get_directory_line(tag).state;
+    auto &dir_line = get_directory_line(tag);
+    CACHE_STATE state = dir_line.state;
+
+    // update read counts
+    dir_line.increase_read_count(pid);
 
     switch (state)
     {
@@ -146,17 +182,23 @@ void DIR_MSI::process_write(UINT32  pid, UINT64 addr, UINT64 tag, UINT32  set_in
     HIT_MISS_TYPES response = CACHE_MISS;
 
     UINT32 home = get_home_node(tag);
-    CACHE_STATE state = get_directory_line(tag).state;
+    auto &dir_line = get_directory_line(tag);
+    CACHE_STATE state = dir_line.state;
 
     switch (state)
     {
         case CACHE_STATE::MODIFIED:
         case CACHE_STATE::SHARED:
             response = CACHE_HIT;
-            cost = fetch_and_invalidate(pid, home, tag, response);
+            if (detector) {
+                cost = push_and_invalidate(pid, home, tag, response);
+            } else {
+                cost = fetch_and_invalidate(pid, home, tag, response);
+            }
             break;
 
         case CACHE_STATE::INVALID:
+            dir_line.update_last_writer(pid);
             cost = write_miss(pid, home, tag);
             break;
         default:

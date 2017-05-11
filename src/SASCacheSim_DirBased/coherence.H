@@ -13,6 +13,7 @@ typedef enum
 {
     LOCAL_CACHE_ACCESS = 3,
     REMOTE_CACHE_ACCESS = 7,
+    CACHE_TO_CACHE = 8,
     MEMORY_ACCESS = 100
 }COST;
 
@@ -32,6 +33,8 @@ public:
     Directory_Line()
     {
         sharer_vector = 0;
+        read_count_vector = 0;
+        last_writer = ~0;
         state = CACHE_STATE::INVALID;
     }
 
@@ -57,11 +60,52 @@ public:
     void clear_sharer(UINT32 pid)
     {
         sharer_vector &= (~(1 << pid));
+        // clear read counts as well
+        read_count_vector &= ~(3 << (pid*2));
+    }
+
+    void increase_read_count(UINT32 pid)
+    {
+        assert(pid < 64);
+        auto count = (read_count_vector >> (pid * 2)) & 3;
+        if (count < 3){
+            read_count_vector += (1 << (pid * 2));
+        }
+    }
+
+    void decrease_read_count(UINT32 pid)
+    {
+        assert(pid < 64);
+        auto count = (read_count_vector >> (pid * 2)) & 3;
+        if (count > 0){
+            read_count_vector -= (1 << (pid * 2));
+        }
+    }
+
+    bool qualified_reader(UINT32 pid)
+    {
+        return read_count_vector & (1 << (pid+1));
+    }
+
+    bool is_last_writer(UINT32 pid)
+    {
+        return pid == last_writer;
+    }
+
+    void update_last_writer(UINT32 pid)
+    {
+        last_writer = pid;
+        set_sharer(pid);
+        read_count_vector = 0;
     }
 
 public:
     UINT32  sharer_vector;
     CACHE_STATE  state;
+
+    // detector
+    UINT32 last_writer;
+    UINT64 read_count_vector; //NOTE: reverse
 };
 
 /* ===================================================================== */
@@ -73,13 +117,15 @@ public:
     DIR_MSI(UINT32 num_processors): _num_processors(num_processors)
     {
         profiles = std::vector<Profile>(num_processors, Profile());
-        proposed = true;
+        detector = false;
     }
     void process_read(UINT32 pid, UINT64 addr, UINT64 tag, UINT32 set_index);
     void process_write(UINT32 pid, UINT64 addr, UINT64 tag, UINT32 set_index);
 
     INT32 fetch(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response);
     INT32 fetch_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response);
+    // speculatively push data to qualified readers
+    INT32 push_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response);
     INT32 read_miss(UINT32 pid, UINT32 home, UINT64 tag);
     INT32 write_miss(UINT32 pid, UINT32 home, UINT64 tag);
     INT32 data_write_back(UINT32 pid, UINT32 home)
@@ -127,5 +173,5 @@ public:
     std::unordered_map<uint64_t, Access_Stat> line_stat;
     std::unordered_map<UINT64, Directory_Line>  _directory;
     UINT32  _num_processors;
-    bool proposed;
+    bool detector;
 };
