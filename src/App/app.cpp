@@ -11,9 +11,9 @@
 std::mutex iomutex;
 #endif
 
-using DATA_T = uint32_t;
+using DATA_T = uint64_t;
 const uint32_t ROUND = 1e6;
-const int SYNC = 1000;
+const int SYNC = 100;
 
 std::mutex mx;
 DATA_T *data = nullptr;
@@ -71,10 +71,9 @@ int main()
 {
     // int nthreads = static_cast<int>(std::thread::hardware_concurrency() / 2 - 1);
     // std::cout << "app start" << std::endl;
+    data = new DATA_T(100999986);
     int nthreads = 3;
     std::vector<std::thread> ths(nthreads);
-    data = new DATA_T(10086);
-    std::cout << "Memory Addr: " << std::hex << data << std::endl;
 
     ths[0] = std::thread{produce};
     pin(0, ths[0]);
@@ -89,5 +88,7 @@ int main()
     {
         th.join();
     }
+
+    std::cout << "Memory Addr: " << std::hex << data << std::endl;
     delete data;
 }
