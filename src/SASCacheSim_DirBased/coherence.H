@@ -13,7 +13,7 @@ typedef enum
 {
     LOCAL_CACHE_ACCESS = 3,
     REMOTE_CACHE_ACCESS = 7,
-    CACHE_TO_CACHE = 8,
+    CACHE_TO_CACHE = 4, // amortized by the numebr of pushed processors
     MEMORY_ACCESS = 100
 }COST;
 
@@ -60,7 +60,10 @@ public:
     inline void clear_sharer(uint32_t pid)
     {
         sharer_vector &= (~(1 << pid));
-        // clear read counts as well
+    }
+
+    inline void clear_read_count(uint32_t pid)
+    {
         read_count_vector &= ~(3 << (pid*2));
     }
 
@@ -84,7 +87,7 @@ public:
 
     inline bool qualified_reader(UINT32 pid)
     {
-        return read_count_vector & (1 << (pid+1));
+        return read_count_vector & (1 << (2*pid+1));
     }
 
     inline bool is_last_writer(UINT32 pid)
@@ -117,7 +120,7 @@ public:
     DIR_MSI(uint32_t num_processors): _num_processors(num_processors)
     {
         profiles = std::vector<Profile>(num_processors, Profile());
-        detector = true;
+        detector = false;
     }
 
     void process_read(uint32_t pid, uint64_t addr, uint64_t tag);

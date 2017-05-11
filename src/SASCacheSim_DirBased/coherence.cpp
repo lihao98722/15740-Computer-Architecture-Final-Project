@@ -67,9 +67,10 @@ INT32 DIR_MSI::push_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS
     if (dir.is_last_writer(pid)) {
         for (uint32_t i = 0; i < _num_processors; ++i)
         {
-            dir.decrease_read_count(i);
             if (i != pid) {
-                if (dir.is_set(i) && dir.qualified_reader(pid)) {
+                if (dir.qualified_reader(i)) {
+                    dir.set_sharer(i);
+                    dir.decrease_read_count(i);
                     cost += CACHE_TO_CACHE;
                 } else {
                     dir.clear_sharer(i);
