@@ -33,12 +33,12 @@ int32_t DIR_MSI::fetch(uint32_t pid, uint32_t home, uint64_t tag, HIT_MISS_TYPES
 void DIR_MSI::invalidate(uint32_t pid, uint64_t tag)
 // on a processor write with SHARED/MODIFIED ((without detector))
 {
-    Directory_Line &dir = get_directory_line(tag);
-    dir.clear_sharer(pid);
-    if (dir.sharer_vector == 0) // no sharers
-    {
-        dir.state = CACHE_STATE::INVALID;
-    }
+    //Directory_Line &dir = get_directory_line(tag);
+    //dir.clear_sharer(pid);
+    //if (dir.sharer_vector == 0) // no sharers
+   // {
+    //    dir.state = CACHE_STATE::INVALID;
+   // }
 }
 
 // on a processor write with SHARED/MODIFIED (without detector)
