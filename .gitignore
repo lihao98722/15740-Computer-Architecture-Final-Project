@@ -1,6 +1,8 @@
 # MAC OSX
 .DS_Store
 obj-intel64/
+cache.out
+cache_proposed.out
 
 ## Core latex/pdflatex auxiliary files:
 *.aux

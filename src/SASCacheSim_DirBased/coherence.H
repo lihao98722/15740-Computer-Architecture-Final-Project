@@ -13,6 +13,7 @@ typedef enum
 {
     LOCAL_CACHE_ACCESS = 3,
     REMOTE_CACHE_ACCESS = 7,
+    CACHE_TO_CACHE = 8,
     MEMORY_ACCESS = 100
 }COST;
 
@@ -32,6 +33,8 @@ public:
     Directory_Line()
     {
         sharer_vector = 0;
+        read_count_vector = 0;
+        last_writer = ~0;
         state = CACHE_STATE::INVALID;
     }
 
@@ -57,11 +60,52 @@ public:
     inline void clear_sharer(uint32_t pid)
     {
         sharer_vector &= (~(1 << pid));
+        // clear read counts as well
+        read_count_vector &= ~(3 << (pid*2));
+    }
+
+    inline void increase_read_count(UINT32 pid)
+    {
+        assert(pid < 64);
+        auto count = (read_count_vector >> (pid * 2)) & 3;
+        if (count < 3){
+            read_count_vector += (1 << (pid * 2));
+        }
+    }
+
+    inline void decrease_read_count(UINT32 pid)
+    {
+        assert(pid < 64);
+        auto count = (read_count_vector >> (pid * 2)) & 3;
+        if (count > 0){
+            read_count_vector -= (1 << (pid * 2));
+        }
+    }
+
+    inline bool qualified_reader(UINT32 pid)
+    {
+        return read_count_vector & (1 << (pid+1));
+    }
+
+    inline bool is_last_writer(UINT32 pid)
+    {
+        return pid == last_writer;
+    }
+
+    inline void update_last_writer(UINT32 pid)
+    {
+        last_writer = pid;
+        set_sharer(pid);
+        read_count_vector = 0;
     }
 
 public:
     uint32_t  sharer_vector;
     CACHE_STATE  state;
+
+    // detector
+    UINT32 last_writer;
+    UINT64 read_count_vector; //NOTE: reverse
 };
 
 /* ===================================================================== */
@@ -73,16 +117,18 @@ public:
     DIR_MSI(uint32_t num_processors): _num_processors(num_processors)
     {
         profiles = std::vector<Profile>(num_processors, Profile());
-        proposed = true;
+        detector = false;
     }
+
     void process_read(uint32_t pid, uint64_t addr, uint64_t tag);
     void process_write(uint32_t pid, uint64_t addr, uint64_t tag);
 
     int32_t fetch(uint32_t pid, uint32_t home, uint64_t tag, HIT_MISS_TYPES &response);
     int32_t fetch_and_invalidate(uint32_t pid, uint32_t home, uint64_t tag, HIT_MISS_TYPES &response);
+    void invalidate(uint32_t pid, uint64_t tag);
+    int32_t push_and_invalidate(uint32_t pid, uint32_t home, uint64_t tag, HIT_MISS_TYPES &response);
     int32_t read_miss(uint32_t pid, uint32_t home, uint64_t tag);
     int32_t write_miss(uint32_t pid, uint32_t home, uint64_t tag);
-    void invalidate(uint32_t pid, uint64_t tag);
 
     inline int32_t data_write_back(uint32_t pid, uint32_t home)
     {
@@ -127,7 +173,7 @@ public:
 public:
     std::vector<Profile> profiles;
     std::unordered_map<uint64_t, Access_Stat> line_stat;
-    std::unordered_map<uint64_t, Directory_Line>  _directory;
+    std::unordered_map<UINT64, Directory_Line>  _directory;
     uint32_t  _num_processors;
-    bool proposed;
+    bool detector;
 };
