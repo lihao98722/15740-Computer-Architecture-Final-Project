@@ -78,32 +78,13 @@ INT32 DIR_MSI::push_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS
         }
         response = CACHE_HIT;
         cost += LOCAL_CACHE_ACCESS;
+        dir.state = CACHE_STATE::MODIFIED;
     }
     else
     {
-        // requesting node is sharer/owner
-        if (dir.is_set(pid)) {
-            response = CACHE_HIT;
-            cost += LOCAL_CACHE_ACCESS;
-        }
-        // requesting node is not sharer/owner
-        else
-        {
-            response = CACHE_MISS;
-            cost += MEMORY_ACCESS;
-            if (dir.state == CACHE_STATE::MODIFIED)
-            {
-                UINT32 owner = dir.owner(_num_processors);
-                cost += data_write_back(owner, home);
-            }
-            // invalidate other sharers and claim ownership
-            dir.sharer_vector = 0;
-            dir.set_sharer(pid);
-        }
+        cost = fetch_and_invalidate(pid, home, tag, response);
         dir.update_last_writer(pid);
     }
-
-    dir.state = CACHE_STATE::MODIFIED;
 
     return cost;
 }
