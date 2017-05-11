@@ -12,7 +12,7 @@ std::mutex iomutex;
 #endif
 
 using DATA_T = uint64_t;
-const uint32_t ROUND = 1e6;
+const uint32_t ROUND = 1e7;
 const int SYNC = 100;
 
 std::mutex mx;
