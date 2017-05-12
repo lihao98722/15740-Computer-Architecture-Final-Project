@@ -16,75 +16,64 @@ extern CACHE_CONFIG l1_config;
 /* ===================================================================== */
 Controller * controller = nullptr;
 std::unordered_map<UINT32, UINT32> t_map;    // Mapping which Thread Belongs to Which processor
-UINT32 active_threads = 0;
-UINT32 nextPID = 0;
-UINT32 pow2processors;
+// UINT32 active_threads = 0;
+uint32_t nextPID = 0;
+uint32_t pow2processors;
 
 int lock_id = 1;
 PIN_LOCK mapLock;
 
 
-
-/* ===================================================================== */
-UINT32 get_pid(UINT32 tid)
+uint32_t get_pid(UINT32 tid)
 {
     auto t_map_it = t_map.find(tid);
     return t_map_it->second;
 }
 
-/* ===================================================================== */
-VOID cache_load(UINT32 tid, ADDRINT pin_addr)
+void cache_load(UINT32 tid, ADDRINT pin_addr)
 {
     // std::cout << "cache load" << std::endl;
     PIN_GetLock(&mapLock, lock_id++);
-    UINT64 addr = reinterpret_cast<UINT64>(pin_addr);
-    UINT32 pid = get_pid(tid);
+    uint64_t addr = reinterpret_cast<UINT64>(pin_addr);
+    uint32_t pid = get_pid(tid);
     controller->load_single_line(addr, pid);
     PIN_ReleaseLock(&mapLock);
 }
 
-/* ===================================================================== */
-VOID cache_store(UINT32 tid, ADDRINT pin_addr)
+void cache_store(UINT32 tid, ADDRINT pin_addr)
 {
     // std::cout << "cache store" << std::endl;
     PIN_GetLock(&mapLock, lock_id++);
-    UINT64 addr = reinterpret_cast<UINT64>(pin_addr);
-    UINT32 pid = get_pid(tid);
+    uint64_t addr = reinterpret_cast<UINT64>(pin_addr);
+    uint32_t pid = get_pid(tid);
     controller->store_single_line(addr, pid);
     PIN_ReleaseLock(&mapLock);
 }
 
-/* ===================================================================== */
-inline UINT32 get_current_tid()
+inline uint32_t get_current_tid()
 {
     return PIN_ThreadId();
 }
 
-/* ===================================================================== */
-inline UINT32 get_next_pid()
+inline uint32_t get_next_pid()
 {
     // Round Robbin, condition typically faster than modulo
     return nextPID == pow2processors ? 0 : nextPID++;
 }
 
-/* ===================================================================== */
 void process_attach()
 {
-    // std::cout << "process attach" << std::endl;
-
+    PIN_GetLock(&mapLock, lock_id++);
     pow2processors = l1_config.total_processors;
     controller = new Controller(l1_config.total_processors,
                                 l1_config.num_sets,
                                 l1_config.line_size,
                                 l1_config.set_size);
-
-    PIN_GetLock(&mapLock, lock_id++);
-    active_threads++;
+    // active_threads++;
     PIN_ReleaseLock(&mapLock);
 }
 
-/* ===================================================================== */
-VOID process_detach()
+void process_detach()
 {
     std::ofstream out(KnobOutputFile.Value().c_str());
     out << controller->stat_to_string();
@@ -92,8 +81,7 @@ VOID process_detach()
     out.close();
 }
 
-/* ===================================================================== */
-VOID thread_attach()
+void thread_attach()
 {
     auto temp_tid = get_current_tid();
     auto temp_pid = get_next_pid();
@@ -101,12 +89,12 @@ VOID thread_attach()
     t_map[temp_tid] = temp_pid;
 }
 
-VOID thread_detach()
+void thread_detach()
 {
     auto tid = get_current_tid();
     auto t_map_it = t_map.find(tid);
     if (t_map_it != t_map.end())
     {
-        (VOID)t_map.erase(t_map_it);
+        (void)t_map.erase(t_map_it);
     }
 }

@@ -17,7 +17,7 @@ const uint64_t THRESHOLD = 100;
 class Stat
 {
 public:
-    Stat(): hits(0), misses(0), hit_cycles(0), miss_cycles(0) {}
+    Stat(): hits(0), misses(0), hit_cycles(0), miss_cycles(0), hops(0) {}
 
     inline std::string stat_to_string(const std::string &prefix, const std::string &type)
     {
@@ -47,10 +47,11 @@ public:
     }
 
 public:
-    uint64_t hits = 0;
-    uint64_t misses = 0;
-    uint64_t hit_cycles = 0;
-    uint64_t miss_cycles = 0;
+    uint64_t hits;
+    uint64_t misses;
+    uint64_t hit_cycles;
+    uint64_t miss_cycles;
+    uint64_t hops;  // network hops
 };
 
 class Access_Stat
@@ -110,16 +111,21 @@ public:
     inline std::string line_stat_to_string()
     {
         std::stringstream out;
-        out << "Memory Stats:\n";
-        out << "\t\tAddr\tLoad Hit\tLoad Miss\tStore Hit\tStore Miss\n";
+        out << "Memory Stats:" << std::endl;
+        out << std::setw(15) << std::left << "Addr"
+            << std::setw(10) << std::left << "Load Hit" << std::setw(10) << std::left << "Load Miss"
+            << std::setw(10) << std::left << "Store Hit" << std::setw(10) << std::left << "Store Miss" << std::endl;
+
         for (const auto& p : _line_stat)
         {
             if (p.second.count <= THRESHOLD) {
                 continue;
             }
-            out << std::hex << p.first << std::dec << "\t\t"
-               << p.second.load.hits << "\t" << p.second.load.misses << "\t"
-               << p.second.store.hits << "\t"<< p.second.store.misses << "\n";
+            out << std::setw(15) << std::left << std::hex << p.first << std::dec
+                << std::setw(10) << std::left << p.second.load.hits
+                << std::setw(10) << std::left << p.second.load.misses
+                << std::setw(10) << std::left << p.second.store.hits
+                << std::setw(10) << std::left << p.second.store.misses << std::endl;
         }
         return out.str();
     }
