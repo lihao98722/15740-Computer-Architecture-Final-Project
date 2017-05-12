@@ -132,17 +132,17 @@ public:
 
     void process_read(uint32_t pid, uint64_t addr);
     void process_write(uint32_t pid, uint64_t addr, Controller *controller);
-
-    int32_t fetch(uint32_t pid, uint32_t home, uint64_t addr, ACCESS_TYPE &response);
-    int32_t fetch_and_invalidate(uint32_t pid, uint32_t home, uint64_t addr, ACCESS_TYPE &response);
-    int32_t push_and_invalidate(uint32_t pid, uint32_t home, uint64_t addr, ACCESS_TYPE &response, Controller *controller);
-    int32_t read_miss(uint32_t pid, uint32_t home, uint64_t addr);
-    int32_t write_miss(uint32_t pid, uint32_t home, uint64_t addr);
     void invalidate(uint32_t pid, uint64_t addr);
 
-    inline int32_t data_write_back(uint32_t pid, uint32_t home)
+    uint64_t fetch(uint32_t pid, uint32_t home, uint64_t addr, uint64_t &hops, ACCESS_TYPE &response);
+    uint64_t fetch_and_invalidate(uint32_t pid, uint32_t home, uint64_t addr, uint64_t &hops, ACCESS_TYPE &response);
+    uint64_t push_and_invalidate(uint32_t pid, uint32_t home, uint64_t addr, uint64_t &hops, ACCESS_TYPE &response, Controller *controller);
+    uint64_t read_miss(uint32_t pid, uint32_t home, uint64_t addr, uint64_t &hops);
+    uint64_t write_miss(uint32_t pid, uint32_t home, uint64_t addr, uint64_t &hops);
+
+    inline uint64_t data_write_back(uint32_t pid, uint32_t home, uint64_t &hops)
     {
-        return get_directory_cost(pid, home) + MEMORY_ACCESS;
+        return get_directory_cost(pid, home, hops) + MEMORY_ACCESS;
     }
 
     inline uint32_t get_home_node(uint64_t addr)
@@ -150,8 +150,11 @@ public:
         return addr & (_num_processors - 1);
     }
 
-    inline int32_t get_directory_cost(uint32_t src, uint32_t dest)
+    inline uint64_t get_directory_cost(uint32_t src, uint32_t dest, uint64_t &hops)
     {
+        if (src != dest) {  // request -> reply
+            hops += 2;
+        }
         return (src == dest) ? LOCAL_CACHE_ACCESS : REMOTE_CACHE_ACCESS;
     }
 

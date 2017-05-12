@@ -29,19 +29,19 @@ public:
                       << std::setw(15) << std::left << hits
                       << std::setw(15) << std::left << (100.0 * hits / total_accesses)
                       << std::setw(15) << std::left << hit_cycles
-                      << std::setw(10) << std::left << (100.0 * hit_cycles / total_cycles)  << "\n";
+                      << std::setw(10) << std::left << (100.0 * hit_cycles / total_cycles) << std::endl;
 
         out << prefix << std::setw(25) << std::left << (type + "-Misses:")
                       << std::setw(15) << std::left << misses
                       << std::setw(15) << std::left << (100.0 * misses / total_accesses)
                       << std::setw(15) << std::left << miss_cycles
-                      << std::setw(10) << std::left << (100.0 * miss_cycles / total_cycles) << "\n";
+                      << std::setw(10) << std::left << (100.0 * miss_cycles / total_cycles) << std::endl;
 
         out << prefix << std::setw(25) << std::left << (type + "-Total Accesses:")
                       << std::setw(15) << std::left << total_accesses
                       << std::setw(15) << std::left << 100.0
                       << std::setw(15) << std::left << total_cycles
-                      << std::setw(10) << std::left << 100.0 << "\n\n";
+                      << std::setw(10) << std::left << 100.0 << std::endl;
 
         return out.str();
     }
@@ -51,7 +51,7 @@ public:
     uint64_t misses;
     uint64_t hit_cycles;
     uint64_t miss_cycles;
-    uint64_t hops;  // network hops
+    uint64_t hops;
 };
 
 class Access_Stat
@@ -70,6 +70,7 @@ public:
         uint64_t total_miss_cycles = load.miss_cycles + store.miss_cycles;
         uint64_t total_cycles = total_hit_cycles + total_miss_cycles;
 
+        uint64_t total_hops = load.hops + store.hops;
 
         out << load.stat_to_string(prefix, "Load") << store.stat_to_string(prefix, "Store");
 
@@ -77,19 +78,29 @@ public:
                       << std::setw(15) << std::left << total_hits
                       << std::setw(15) << std::left << (100.0 * total_hits / total_accesses)
                       << std::setw(15) << std::left << total_hit_cycles
-                      << std::setw(10) << std::left << (100.0 * total_hit_cycles / total_cycles) << "\n";
+                      << std::setw(10) << std::left << (100.0 * total_hit_cycles / total_cycles) << std::endl;
 
         out << prefix << std::setw(25) << std::left << "Total-Misses:"
                       << std::setw(15) << std::left << total_misses
                       << std::setw(15) << std::left << (100.0 * total_misses / total_accesses)
                       << std::setw(15) << std::left << total_miss_cycles
-                      << std::setw(10) << std::left << (100.0 * total_miss_cycles / total_cycles) << "\n\n";
+                      << std::setw(10) << std::left << (100.0 * total_miss_cycles / total_cycles) << std::endl << std::endl;
 
-        out << prefix << std::setw(25) << std::left << "Estimated Cost:"
+        out << prefix << std::setw(25) << std::left << "Estimated-Cost:"
                       << std::setw(15) << std::left << total_accesses
                       << std::setw(15) << std::left << 100.0
                       << std::setw(15) << std::left << total_cycles
-                      << std::setw(10) << std::left << 100.0 << "\n\n";
+                      << std::setw(10) << std::left << 100.0 << std::endl;
+
+        out << prefix << std::setw(25) << std::left << ("Load-Hops:")
+                      << std::setw(15) << std::left << load.hops
+                      << std::setw(15) << std::left << (100.0 * load.hops / total_hops) << std::endl
+            << prefix << std::setw(25) << std::left << ("Store-Hops:")
+                      << std::setw(15) << std::left << store.hops
+                      << std::setw(10) << std::left << (100.0 * store.hops / total_hops) << std::endl
+            << prefix << std::setw(25) << std::left << ("Total-Hops:")
+                      << std::setw(15) << std::left << total_hops
+                      << std::setw(10) << std::left << 100.0  << std::endl << std::endl;
 
         return out.str();
     }
@@ -108,42 +119,11 @@ public:
         _profiles = std::vector<Access_Stat>(num_processors, Access_Stat());
     }
 
-    inline std::string line_stat_to_string()
-    {
-        std::stringstream out;
-        out << "Memory Stats:" << std::endl;
-        out << std::setw(15) << std::left << "Addr"
-            << std::setw(10) << std::left << "Load Hit" << std::setw(10) << std::left << "Load Miss"
-            << std::setw(10) << std::left << "Store Hit" << std::setw(10) << std::left << "Store Miss" << std::endl;
-
-        for (const auto& p : _line_stat)
-        {
-            if (p.second.count <= THRESHOLD) {
-                continue;
-            }
-            out << std::setw(15) << std::left << std::hex << p.first << std::dec
-                << std::setw(10) << std::left << p.second.load.hits
-                << std::setw(10) << std::left << p.second.load.misses
-                << std::setw(10) << std::left << p.second.store.hits
-                << std::setw(10) << std::left << p.second.store.misses << std::endl;
-        }
-        return out.str();
-    }
-
-    inline std::string stats_to_string()
-    {
-        std::stringstream out;
-        // skip main process, starting from thread 1 since thread0 is the main application
-        for (uint32_t pid = 0; pid < _num_processors; ++pid)
-        {
-            out << "+ Processor: " << pid << " L1 Data Cache" << std::endl
-                << _profiles[pid].stat_to_string("+ ") << std::endl;
-        }
-        out << line_stat_to_string() << std::endl;
-        return out.str();
-    }
-
-    inline void profile_cache_load(ACCESS_TYPE &type, uint32_t pid, uint64_t addr, int32_t cost)
+    inline void profile_cache_load(ACCESS_TYPE  &type,
+                                   uint32_t     pid,
+                                   uint64_t     addr,
+                                   uint64_t     cost,
+                                   uint64_t     hops)
     {
         if (type == ACCESS_TYPE::CACHE_HIT) {
             ++_line_stat[addr].load.hits;
@@ -155,9 +135,14 @@ public:
             _profiles[pid].load.miss_cycles += cost;
         }
         ++_line_stat[addr].count;
+        _profiles[pid].load.hops += hops;
     }
 
-    inline void profile_cache_store(ACCESS_TYPE &type, uint32_t pid, uint64_t addr, int32_t cost)
+    inline void profile_cache_store(ACCESS_TYPE   &type,
+                                    uint32_t      pid,
+                                    uint64_t      addr,
+                                    uint64_t      cost,
+                                    uint64_t      hops)
     {
         if (type == ACCESS_TYPE::CACHE_HIT) {
             ++_line_stat[addr].store.hits;
@@ -169,6 +154,43 @@ public:
             _profiles[pid].store.miss_cycles += cost;
         }
         ++_line_stat[addr].count;
+        _profiles[pid].store.hops += hops;
+    }
+
+    inline std::string stats_to_string()
+    {
+        std::stringstream out;
+        // NOTE: starting from thread 1 if you want to skip main process
+        for (uint32_t pid = 0; pid < _num_processors; ++pid)
+        {
+            out << "+ Processor: " << pid << " L1 Data Cache" << std::endl
+                << _profiles[pid].stat_to_string("+ ") << std::endl;
+        }
+        out << line_stat_to_string() << std::endl;
+        return out.str();
+    }
+
+private:
+    inline std::string line_stat_to_string()
+    {
+        std::stringstream out;
+        out << "Memory Stats:" << std::endl;
+        out << std::setw(15) << std::left << "Addr"
+            << std::setw(10) << std::left << "Load Hit" << std::setw(10) << std::left << "Load Miss"
+            << std::setw(10) << std::left << "Store Hit" << std::setw(10) << std::left << "Store Miss" << std::endl;
+
+        for (const auto & p : _line_stat)
+        {
+            if (p.second.count <= THRESHOLD) {
+                continue;
+            }
+            out << std::setw(15) << std::left << std::hex << p.first << std::dec
+                << std::setw(10) << std::left << p.second.load.hits
+                << std::setw(10) << std::left << p.second.load.misses
+                << std::setw(10) << std::left << p.second.store.hits
+                << std::setw(10) << std::left << p.second.store.misses << std::endl;
+        }
+        return out.str();
     }
 
 private:
