@@ -1,53 +1,20 @@
-//
-// @ORIGINAL_AUTHOR: Gang-Ryung Uh
-// @EXTENDED: Adrian Perez (adrian.perez@hp.com)
-//
-/*! @file
- *  This file contains callback routines for cache simulator
- */
 #include "callbacks.H"
 
 extern KNOB<string> KnobOutputFile;
 extern KNOB<BOOL>   KnobNoSharedLibs;
 extern CACHE_CONFIG l1_config;
 
-/* ===================================================================== */
-/* Global Variables */
-/* ===================================================================== */
-Controller * controller = nullptr;
-std::unordered_map<UINT32, UINT32> t_map;    // Mapping which Thread Belongs to Which processor
-// UINT32 active_threads = 0;
-uint32_t nextPID = 0;
+int32_t lock_id = 1;
+uint32_t next_pid = 0;
 uint32_t pow2processors;
-
-int lock_id = 1;
+Controller * controller = nullptr;
+std::unordered_map<uint32_t, uint32_t> t_map;  // thread id -> processor id
 PIN_LOCK mapLock;
 
-
-uint32_t get_pid(UINT32 tid)
+inline uint32_t get_pid(uint32_t tid)
 {
-    auto t_map_it = t_map.find(tid);
-    return t_map_it->second;
-}
-
-void cache_load(UINT32 tid, ADDRINT pin_addr)
-{
-    // std::cout << "cache load" << std::endl;
-    PIN_GetLock(&mapLock, lock_id++);
-    uint64_t addr = reinterpret_cast<UINT64>(pin_addr);
-    uint32_t pid = get_pid(tid);
-    controller->load_single_line(addr, pid);
-    PIN_ReleaseLock(&mapLock);
-}
-
-void cache_store(UINT32 tid, ADDRINT pin_addr)
-{
-    // std::cout << "cache store" << std::endl;
-    PIN_GetLock(&mapLock, lock_id++);
-    uint64_t addr = reinterpret_cast<UINT64>(pin_addr);
-    uint32_t pid = get_pid(tid);
-    controller->store_single_line(addr, pid);
-    PIN_ReleaseLock(&mapLock);
+    assert(t_map.find(tid) != t_map.end());
+    return t_map[tid];
 }
 
 inline uint32_t get_current_tid()
@@ -58,7 +25,25 @@ inline uint32_t get_current_tid()
 inline uint32_t get_next_pid()
 {
     // Round Robbin, condition typically faster than modulo
-    return nextPID == pow2processors ? 0 : nextPID++;
+    return next_pid == pow2processors ? 0 : next_pid++;
+}
+
+void cache_load(UINT32 tid, ADDRINT pin_addr)
+{
+    PIN_GetLock(&mapLock, lock_id++);
+    uint64_t addr = reinterpret_cast<UINT64>(pin_addr);
+    uint32_t pid = get_pid(tid);
+    controller->load_single_line(addr, pid);
+    PIN_ReleaseLock(&mapLock);
+}
+
+void cache_store(UINT32 tid, ADDRINT pin_addr)
+{
+    PIN_GetLock(&mapLock, lock_id++);
+    uint64_t addr = reinterpret_cast<UINT64>(pin_addr);
+    uint32_t pid = get_pid(tid);
+    controller->store_single_line(addr, pid);
+    PIN_ReleaseLock(&mapLock);
 }
 
 void process_attach()
@@ -69,14 +54,13 @@ void process_attach()
                                 l1_config.num_sets,
                                 l1_config.line_size,
                                 l1_config.set_size);
-    // active_threads++;
     PIN_ReleaseLock(&mapLock);
 }
 
 void process_detach()
 {
     std::ofstream out(KnobOutputFile.Value().c_str());
-    out << controller->stat_to_string();
+    out << controller->stats_to_string();
     delete controller;
     out.close();
 }
@@ -91,10 +75,7 @@ void thread_attach()
 
 void thread_detach()
 {
-    auto tid = get_current_tid();
-    auto t_map_it = t_map.find(tid);
-    if (t_map_it != t_map.end())
-    {
-        (void)t_map.erase(t_map_it);
-    }
+    uint32_t tid = get_current_tid();
+    assert(t_map.find(tid) != t_map.end());
+    t_map.erase(t_map.find(tid));
 }

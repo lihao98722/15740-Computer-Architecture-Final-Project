@@ -41,7 +41,7 @@ public:
                       << std::setw(15) << std::left << total_accesses
                       << std::setw(15) << std::left << 100.0
                       << std::setw(15) << std::left << total_cycles
-                      << std::setw(10) << std::left << 100.0 << std::endl;
+                      << std::setw(10) << std::left << 100.0 << std::endl << std::endl;
 
         return out.str();
     }

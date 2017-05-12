@@ -8,7 +8,7 @@
 
 #include "coherence.H"
 
-const uint64_t DEFAULT_TAG = 0xFFFFFFFFFFFFFFFF;
+const uint64_t ALL_ONES = 0xFFFFFFFFFFFFFFFF;
 
 enum class LOCAL_STATUS
 {
@@ -23,7 +23,7 @@ enum class LOCAL_STATUS
 class Cache_Line
 {
 public:
-    Cache_Line(): lru(0), tag(DEFAULT_TAG), addr(0), status(LOCAL_STATUS::UNCACHED){}
+    Cache_Line(): lru(0), tag(ALL_ONES), addr(0), status(LOCAL_STATUS::UNCACHED){}
 
 public:
     uint64_t lru;
@@ -157,8 +157,8 @@ public:
         offset_num_bits = get_num_bits(line_size);
         set_index_num_bits = get_num_bits(num_sets);
 
-        tag_mask = (0xFFFFFFFFFFFFFFFF << (offset_num_bits + set_index_num_bits));
-        offset_mask = ~(0xFFFFFFFFFFFFFFFF << offset_num_bits);
+        tag_mask = (ALL_ONES << (offset_num_bits + set_index_num_bits));
+        offset_mask = ~(ALL_ONES << offset_num_bits);
 
         #ifdef DEBUG
         std::cout << "offset_num_bits: " << offset_num_bits << std::endl;
@@ -190,7 +190,7 @@ public:
         cache[pid].sets[index].fetch_single_line(pid, tag, addr, coherence, replace);
     }
 
-    inline std::string stat_to_string()
+    inline std::string stats_to_string()
     {
         return coherence->profiles->stats_to_string();
     }
