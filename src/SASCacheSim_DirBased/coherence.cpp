@@ -55,7 +55,7 @@ uint64_t DIR_MSI::fetch_and_invalidate(uint32_t     pid,
     // invalidate other sharers and claim ownership
     for (uint32_t i = 0; i < _num_processors; ++i)
     {
-        if (dir.is_set(i) && i != pid) {  // update hops
+        if (dir.is_set(i) && i != pid) {  // NOTE: update hops
             get_directory_cost(i, home, hops);
         }
     }
@@ -87,6 +87,7 @@ uint64_t DIR_MSI::push_and_invalidate(uint32_t     pid,
                     dir.set_sharer(i);
                     controller->fetch_cache_line(i, addr, false);
                     cost += CACHE_TO_CACHE;
+                    get_directory_cost(i, home, hops);  // NOTE: update hops
                 } else {
                     dir.clear_sharer(i);
                 }
