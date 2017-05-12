@@ -1,29 +1,14 @@
-//
-// @ORIGINAL_AUTHOR: Artur Klauser
-// @EXTENDED: Rodric Rabbah (rodric@gmail.com)
-// @EXTENDED: Gang-Ryung Uh (uh@cs.boisestate.edu)
-// @EXTENDED: Adrian Eperez (adrian.perez@hp.com)
-
-/*! @file
- *  This file contains an ISA-portable cache simulator
- */
-#include "pin.H"
-#include "callbacks.H"
-#include "cache.H"
-
-#include <assert.h>
-#include <cstdio>
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
-#include <set>
+#include <cstdio>
+#include <assert.h>
 
+#include "pin.H"
+#include "callbacks.H"
+#include "cache.H"
 
-
-/* ===================================================================== */
-/* Commandline Switches                                                  */
-/* ===================================================================== */
 KNOB<string> KnobOutputFile(KNOB_MODE_WRITEONCE,
                             "pintool",
                             "o",
@@ -47,13 +32,9 @@ KNOB<UINT64> KnobInstructionCount(KNOB_MODE_WRITEONCE,
                                   "l","5000000000000",
                                   "specify the number of instructions to profile");
 
-/* ===================================================================== */
-/* Cache configurations and other simulation parameters                  */
-/* ===================================================================== */
 FILE *config;
 CACHE_CONFIG l1_config;
 
-/* ===================================================================== */
 INT32 usage()
 {
     cerr << "This tool represents a cache simulator.\n\n"
@@ -62,7 +43,6 @@ INT32 usage()
     return -1;
 }
 
-/* ===================================================================== */
 std::string cache_config_string(CACHE_CONFIG cache)
 {
     std::stringstream out;
@@ -89,7 +69,6 @@ LOCALFUN void init_configuration()
     cerr << cache_config_string(l1_config) << endl;
 }
 
-/* ===================================================================== */
 LOCALFUN void initialization()
 {
     if (((config = fopen((KnobConfigFile.Value()).c_str(), "r" )) == NULL))
@@ -101,10 +80,7 @@ LOCALFUN void initialization()
     init_configuration();
 }
 
-/* =====================================================================
-  Called for every read and write
-  Learned from https://software.intel.com/sites/landingpage/pintool/docs/76991/Pin/html/index.html#MAddressTrace
- ===================================================================== */
+// referreed https://software.intel.com/sites/landingpage/pintool/docs/76991/Pin/html/index.html#MAddressTrace
 void Instruction(INS ins, void *v)
 {
     UINT32 memOperands = INS_MemoryOperandCount(ins);
@@ -132,31 +108,26 @@ void Instruction(INS ins, void *v)
     }
 }
 
-/* ===================================================================== */
 void ThreadStart(THREADID threadIndex, CONTEXT *ctxt, INT32 flags, void *v)
 {
     thread_attach();
 }
 
-/* ===================================================================== */
 void ThreadFini(THREADID threadid, const CONTEXT *ctxt, INT32 code, void *v)
 {
     thread_detach();
 }
 
-/* ===================================================================== */
 void Fini(int code, void * v)
 {
     process_detach();
 }
 
-/* ===================================================================== */
 int main(int argc, char *argv[])
 {
     PIN_InitSymbols();
 
-    if(PIN_Init(argc,argv))
-    {
+    if(PIN_Init(argc,argv)) {
         return usage();
     }
 
@@ -180,7 +151,3 @@ int main(int argc, char *argv[])
 
     return 0;
 }
-
-/* ===================================================================== */
-/* eof */
-/* ===================================================================== */

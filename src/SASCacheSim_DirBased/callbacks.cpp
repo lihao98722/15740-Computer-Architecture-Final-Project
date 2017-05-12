@@ -6,7 +6,8 @@ extern CACHE_CONFIG l1_config;
 
 int32_t lock_id = 1;
 uint32_t next_pid = 0;
-uint32_t pow2processors;
+uint32_t num_processors;  // NOTE: number of processor is power of 2
+
 Controller * controller = nullptr;
 std::unordered_map<uint32_t, uint32_t> t_map;  // thread id -> processor id
 PIN_LOCK mapLock;
@@ -24,8 +25,7 @@ inline uint32_t get_current_tid()
 
 inline uint32_t get_next_pid()
 {
-    // Round Robbin, condition typically faster than modulo
-    return next_pid == pow2processors ? 0 : next_pid++;
+    return next_pid == num_processors ? 0 : next_pid++;
 }
 
 void cache_load(UINT32 tid, ADDRINT pin_addr)
@@ -49,7 +49,7 @@ void cache_store(UINT32 tid, ADDRINT pin_addr)
 void process_attach()
 {
     PIN_GetLock(&mapLock, lock_id++);
-    pow2processors = l1_config.total_processors;
+    num_processors = l1_config.total_processors;
     controller = new Controller(l1_config.total_processors,
                                 l1_config.num_sets,
                                 l1_config.line_size,
