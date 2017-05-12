@@ -64,7 +64,7 @@ public:
 
     inline void clear_read_count(uint32_t pid)
     {
-        read_count_vector &= ~(3 << (pid*2));
+        read_count_vector &= ~(3 << (pid * 2));
     }
 
     inline void increase_read_count(UINT32 pid)
@@ -87,7 +87,7 @@ public:
 
     inline bool qualified_reader(UINT32 pid)
     {
-        return read_count_vector & (1 << (2*pid+1));
+        return read_count_vector & (1 << (2 * pid + 1));
     }
 
     inline bool is_last_writer(UINT32 pid)
@@ -107,40 +107,42 @@ public:
     CACHE_STATE  state;
 
     // detector
-    UINT32 last_writer;
-    UINT64 read_count_vector; //NOTE: reverse
+    uint32_t last_writer;
+    uint64_t read_count_vector; //NOTE: reverse
 };
 
 /* ===================================================================== */
 /*  @brief Cache Coherence Protocol MSI                                  */
 /* ===================================================================== */
+class Controller;
+
 class DIR_MSI
 {
 public:
     DIR_MSI(uint32_t num_processors): _num_processors(num_processors)
     {
         profiles = std::vector<Profile>(num_processors, Profile());
-        detector = false;
+        detector = true;
     }
 
-    void process_read(uint32_t pid, uint64_t addr, uint64_t tag);
-    void process_write(uint32_t pid, uint64_t addr, uint64_t tag);
+    void process_read(uint32_t pid, uint64_t addr);
+    void process_write(uint32_t pid, uint64_t addr, Controller *controller);
 
-    int32_t fetch(uint32_t pid, uint32_t home, uint64_t tag, HIT_MISS_TYPES &response);
-    int32_t fetch_and_invalidate(uint32_t pid, uint32_t home, uint64_t tag, HIT_MISS_TYPES &response);
-    void invalidate(uint32_t pid, uint64_t tag);
-    int32_t push_and_invalidate(uint32_t pid, uint32_t home, uint64_t tag, HIT_MISS_TYPES &response);
-    int32_t read_miss(uint32_t pid, uint32_t home, uint64_t tag);
-    int32_t write_miss(uint32_t pid, uint32_t home, uint64_t tag);
+    int32_t fetch(uint32_t pid, uint32_t home, uint64_t addr, HIT_MISS_TYPES &response);
+    int32_t fetch_and_invalidate(uint32_t pid, uint32_t home, uint64_t addr, HIT_MISS_TYPES &response);
+    int32_t push_and_invalidate(uint32_t pid, uint32_t home, uint64_t addr, HIT_MISS_TYPES &response, Controller *controller);
+    int32_t read_miss(uint32_t pid, uint32_t home, uint64_t addr);
+    int32_t write_miss(uint32_t pid, uint32_t home, uint64_t addr);
+    void invalidate(uint32_t pid, uint64_t addr);
 
     inline int32_t data_write_back(uint32_t pid, uint32_t home)
     {
         return get_directory_cost(pid, home) + MEMORY_ACCESS;
     }
 
-    inline uint32_t get_home_node(uint64_t tag)
+    inline uint32_t get_home_node(uint64_t addr)
     {
-        return tag & (_num_processors -1);
+        return addr & (_num_processors - 1);
     }
 
     inline int32_t get_directory_cost(uint32_t src, uint32_t dest)
@@ -148,14 +150,14 @@ public:
         return (src == dest) ? LOCAL_CACHE_ACCESS : REMOTE_CACHE_ACCESS;
     }
 
-    inline Directory_Line & get_directory_line(uint64_t tag)
+    inline Directory_Line & get_directory_line(uint64_t addr)
     {
-        auto it = _directory.find(tag);
+        auto it = _directory.find(addr);
         if (it == _directory.end())
         {
-            _directory[tag] = Directory_Line();
+            _directory[addr] = Directory_Line();
         }
-        return _directory[tag];
+        return _directory[addr];
     }
 
     inline std::string stat_to_string()
@@ -165,7 +167,9 @@ public:
         ss << "\t\tAddr\tLoad Hit\tLoad Miss\tStore Hit\tStore Miss\n";
         for (const auto& p : line_stat)
         {
-            if (p.second.count <= THRESHOLD) {continue;}
+            if (p.second.count <= THRESHOLD) {
+                continue;
+            }
             ss << std::hex << p.first << std::dec << "\t"
                << p.second.load.hit << "\t" << p.second.load.miss << "\t"
                << p.second.store.hit << "\t"<< p.second.store.miss << "\n";
@@ -176,7 +180,7 @@ public:
 public:
     std::vector<Profile> profiles;
     std::unordered_map<uint64_t, Access_Stat> line_stat;
-    std::unordered_map<UINT64, Directory_Line>  _directory;
+    std::unordered_map<uint64_t, Directory_Line>  _directory; //NOTE: addr -> dir_line
     uint32_t  _num_processors;
     bool detector;
 };

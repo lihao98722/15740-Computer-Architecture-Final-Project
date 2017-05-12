@@ -23,11 +23,12 @@ enum class LOCAL_STATUS
 class Cache_Line
 {
 public:
-    Cache_Line(): lru(0), tag(DEFAULT_TAG), status(LOCAL_STATUS::UNCACHED){}
+    Cache_Line(): lru(0), tag(DEFAULT_TAG), addr(0), status(LOCAL_STATUS::UNCACHED){}
 
 public:
     uint64_t lru;
     uint64_t tag;
+    uint64_t addr;
     LOCAL_STATUS status;
 };
 
@@ -43,13 +44,15 @@ public:
     }
 
     // find cache line, return line status
-    inline LOCAL_STATUS fetch(uint64_t tag)
+    inline LOCAL_STATUS fetch(uint64_t tag, DIR_MSI *coherence, bool replace)
     {
         for (auto & _line : _lines)
         {
             if (_line.tag == tag)
             {
-                ++_line.lru;
+                if (replace) {
+                    ++_line.lru;
+                }
                 return _line.status;
             }
         }
@@ -57,14 +60,21 @@ public:
     }
 
     // simulate fetching single cache line, return victim tag if evict triggered
-    inline void fetch_single_line(uint32_t pid, uint64_t tag, DIR_MSI* coherence)
+    inline void fetch_single_line(uint32_t  pid,
+                                  uint64_t  tag,
+                                  uint64_t  addr,
+                                  DIR_MSI   *coherence,
+                                  bool      replace)
     {
-        LOCAL_STATUS status = fetch(tag);
+        LOCAL_STATUS status = fetch(tag, coherence, replace);
         if (status == LOCAL_STATUS::UNCACHED)
         {
             int32_t index = evict(pid, coherence);
-            ++_lines[index].lru;
+            if (replace) {
+                ++_lines[index].lru;
+            }
             _lines[index].tag = tag;
+            _lines[index].addr = addr;
             _lines[index].status = LOCAL_STATUS::VALID;
         }
 
@@ -81,7 +91,7 @@ private:
     inline int32_t evict(uint32_t pid, DIR_MSI* coherence)
     {
         uint64_t _min = _lines[0].lru;
-        uint64_t _evict_tag = 0;
+        uint64_t _evict_addr = 0;
         int32_t _evict = 0;
 
         for (uint32_t i = 1; i < _lines.size(); ++i)
@@ -89,12 +99,14 @@ private:
             if (_lines[i].lru < _min)
             {
                 _evict = i;
-                _evict_tag = _lines[i].tag;
+                _evict_addr = _lines[i].addr;
                 _min = _lines[i].lru;
             }
         }
-        coherence->invalidate(pid, _evict_tag);
-
+        if (_lines[_evict].status != LOCAL_STATUS::UNCACHED)
+        {
+            coherence->invalidate(pid, _evict_addr);
+        }
         return _evict;
     }
 
@@ -161,16 +173,21 @@ public:
 
     inline void store_single_line(uint64_t addr, uint32_t pid)
     {
-        uint64_t tag = get_tag(addr);
-        fetch_cache_line(pid, addr);
-        coherence->process_write(pid, addr, tag);
+        fetch_cache_line(pid, addr, true);
+        coherence->process_write(pid, addr, this);
     }
 
     inline void load_single_line(uint64_t addr, uint32_t pid)
     {
+        fetch_cache_line(pid, addr, true);
+        coherence->process_read(pid, addr);
+    }
+
+    inline void fetch_cache_line(uint32_t pid, uint64_t addr, bool replace)
+    {
         uint64_t tag = get_tag(addr);
-        fetch_cache_line(pid, addr);
-        coherence->process_read(pid, addr, tag);
+        uint32_t index = get_set_index(addr);
+        cache[pid].sets[index].fetch_single_line(pid, tag, addr, coherence, replace);
     }
 
     inline std::string stat_to_string()
@@ -187,13 +204,6 @@ public:
     }
 
 private:
-    inline void fetch_cache_line(uint32_t pid, uint64_t addr)
-    {
-        uint64_t tag = get_tag(addr);
-        uint32_t index = get_set_index(addr);
-        cache[pid].sets[index].fetch_single_line(pid, tag, coherence);
-    }
-
     // extract line information out of a memory address
     inline uint64_t get_set_index(uint64_t addr)
     {
@@ -206,8 +216,7 @@ private:
         return (addr & tag_mask) >> (offset_num_bits + set_index_num_bits);
     }
 
-    // get the number of bits needed to represent 'num'
-    // NOTE: num is power of 2
+    // get the number of bits needed to represent 'num', NOTE: num is power of 2
     inline uint32_t get_num_bits(uint64_t num)
     {
         uint32_t num_bits = 0;
