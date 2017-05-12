@@ -13,7 +13,7 @@ typedef enum
 {
     LOCAL_CACHE_ACCESS = 3,
     REMOTE_CACHE_ACCESS = 7,
-    CACHE_TO_CACHE = 4, // amortized by the numebr of pushed processors
+    CACHE_TO_CACHE = 4,   // amortized by the numebr of pushed processors
     MEMORY_ACCESS = 100
 }COST;
 
@@ -120,7 +120,7 @@ public:
     DIR_MSI(uint32_t num_processors): _num_processors(num_processors)
     {
         profiles = std::vector<Profile>(num_processors, Profile());
-        detector = true;
+        detector = false;
     }
 
     void process_read(uint32_t pid, uint64_t addr, uint64_t tag);

@@ -30,15 +30,15 @@ int32_t DIR_MSI::fetch(uint32_t pid, uint32_t home, uint64_t tag, HIT_MISS_TYPES
     return cost;
 }
 
-void DIR_MSI::invalidate(uint32_t pid, uint64_t tag)
 // on a processor write with SHARED/MODIFIED ((without detector))
+void DIR_MSI::invalidate(uint32_t pid, uint64_t tag)
 {
-    //Directory_Line &dir = get_directory_line(tag);
-    //dir.clear_sharer(pid);
-    //if (dir.sharer_vector == 0) // no sharers
-   // {
-    //    dir.state = CACHE_STATE::INVALID;
-   // }
+    Directory_Line &dir = get_directory_line(tag);
+    dir.clear_sharer(pid);
+    if (dir.sharer_vector == 0) // no sharers
+   {
+       dir.state = CACHE_STATE::INVALID;
+   }
 }
 
 // on a processor write with SHARED/MODIFIED (without detector)
@@ -57,9 +57,9 @@ int32_t DIR_MSI::fetch_and_invalidate(uint32_t pid, uint32_t home, uint64_t tag,
 }
 
 // on a processor write with SHARED/MODIFIED (with detector), speculatively push data to qualified readers
-INT32 DIR_MSI::push_and_invalidate(UINT32 pid, UINT32 home, UINT64 tag, HIT_MISS_TYPES &response)
+int32_t DIR_MSI::push_and_invalidate(uint32_t pid, uint32_t home, uint64_t tag, HIT_MISS_TYPES &response)
 {
-    INT32 cost = get_directory_cost(pid, home);
+    int32_t cost = get_directory_cost(pid, home);
     Directory_Line &dir = get_directory_line(tag);
     assert(dir.state != CACHE_STATE::INVALID);
 

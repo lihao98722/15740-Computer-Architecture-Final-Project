@@ -8,7 +8,7 @@
 
 #include "coherence.H"
 
-const uint64_t DEFAULT_TAG = ~0;
+const uint64_t DEFAULT_TAG = 0xFFFFFFFFFFFFFFFF;
 
 enum class LOCAL_STATUS
 {
@@ -57,16 +57,12 @@ public:
     }
 
     // simulate fetching single cache line, return victim tag if evict triggered
-    uint64_t fetch_single_line(uint64_t tag)
+    inline void fetch_single_line(uint32_t pid, uint64_t tag, DIR_MSI* coherence)
     {
         LOCAL_STATUS status = fetch(tag);
-        uint64_t evict_tag = DEFAULT_TAG;
-
         if (status == LOCAL_STATUS::UNCACHED)
         {
-            int32_t index = evict();
-            evict_tag = _lines[index].tag;
-
+            int32_t index = evict(pid, coherence);
             ++_lines[index].lru;
             _lines[index].tag = tag;
             _lines[index].status = LOCAL_STATUS::VALID;
@@ -78,14 +74,14 @@ public:
         std::cout<< "size: " << _lines.size() << std::endl;
         std::cout<< "lru: " << _lines[index].lru << std::endl;
         #endif
-
-        return evict_tag;
     }
 
 private:
-    inline int32_t evict()
+    // evict cache line and update directory
+    inline int32_t evict(uint32_t pid, DIR_MSI* coherence)
     {
         uint64_t _min = _lines[0].lru;
+        uint64_t _evict_tag = 0;
         int32_t _evict = 0;
 
         for (uint32_t i = 1; i < _lines.size(); ++i)
@@ -93,9 +89,11 @@ private:
             if (_lines[i].lru < _min)
             {
                 _evict = i;
+                _evict_tag = _lines[i].tag;
                 _min = _lines[i].lru;
             }
         }
+        coherence->invalidate(pid, _evict_tag);
 
         return _evict;
     }
@@ -117,11 +115,6 @@ public:
           _num_sets(num_sets)
     {
         sets = std::vector<Cache_Set>(num_sets, Cache_Set(associativity));
-    }
-
-    inline uint64_t fetch_cache_line(uint64_t tag, INT32 index)
-    {
-        return sets[index].fetch_single_line(tag);
     }
 
 public:
@@ -152,9 +145,7 @@ public:
         offset_num_bits = get_num_bits(line_size);
         set_index_num_bits = get_num_bits(num_sets);
 
-        // tag_mask = (tag_mask << (offset_num_bits + set_index_num_bits));
         tag_mask = (0xFFFFFFFFFFFFFFFF << (offset_num_bits + set_index_num_bits));
-        // offset_mask = ~(offset_mask << offset_num_bits);
         offset_mask = ~(0xFFFFFFFFFFFFFFFF << offset_num_bits);
 
         #ifdef DEBUG
@@ -171,24 +162,14 @@ public:
     inline void store_single_line(uint64_t addr, uint32_t pid)
     {
         uint64_t tag = get_tag(addr);
-        uint32_t index = get_set_index(addr);
-        uint64_t evict_tag = cache[pid].fetch_cache_line(tag, index);
-        if (evict_tag != DEFAULT_TAG)
-        {
-            coherence->invalidate(pid, evict_tag);
-        }
+        fetch_cache_line(pid, addr);
         coherence->process_write(pid, addr, tag);
     }
 
     inline void load_single_line(uint64_t addr, uint32_t pid)
     {
         uint64_t tag = get_tag(addr);
-        uint32_t index = get_set_index(addr);
-        uint64_t evict_tag = cache[pid].fetch_cache_line(tag, index);
-        if (evict_tag != DEFAULT_TAG)
-        {
-            coherence->invalidate(pid, evict_tag);
-        }
+        fetch_cache_line(pid, addr);
         coherence->process_read(pid, addr, tag);
     }
 
@@ -206,6 +187,13 @@ public:
     }
 
 private:
+    inline void fetch_cache_line(uint32_t pid, uint64_t addr)
+    {
+        uint64_t tag = get_tag(addr);
+        uint32_t index = get_set_index(addr);
+        cache[pid].sets[index].fetch_single_line(pid, tag, coherence);
+    }
+
     // extract line information out of a memory address
     inline uint64_t get_set_index(uint64_t addr)
     {
@@ -218,7 +206,8 @@ private:
         return (addr & tag_mask) >> (offset_num_bits + set_index_num_bits);
     }
 
-    // get the number of bits needed to represent 'num', num is power of 2
+    // get the number of bits needed to represent 'num'
+    // NOTE: num is power of 2
     inline uint32_t get_num_bits(uint64_t num)
     {
         uint32_t num_bits = 0;
