@@ -192,15 +192,7 @@ public:
 
     inline std::string stat_to_string()
     {
-        std::stringstream ss;
-        // skip main process, starting from thread 1 since thread0 is the main application
-        for (uint32_t i = 0; i < _num_processors; ++i)
-        {
-            ss << "+ Processor: " << i << " L1 Data Cache" << std::endl;
-            ss << coherence->profiles[i].stats_to_string("+ ") << std::endl;
-        }
-        ss << coherence->stat_to_string() << std::endl;
-        return ss.str();
+        return coherence->profiles->stats_to_string();
     }
 
 private:

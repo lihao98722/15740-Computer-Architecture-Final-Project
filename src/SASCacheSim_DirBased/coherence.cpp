@@ -5,7 +5,7 @@
 int32_t DIR_MSI::fetch(uint32_t       pid,
                        uint32_t       home,
                        uint64_t       addr,
-                       HIT_MISS_TYPES &response)
+                       ACCESS_TYPE &response)
 {
     int32_t cost = get_directory_cost(pid, home);
     Directory_Line &dir = get_directory_line(addr);
@@ -13,10 +13,10 @@ int32_t DIR_MSI::fetch(uint32_t       pid,
 
     // fetch up-to-date data
     if (dir.is_set(pid)) { // requesting node is sharer/owner, no state change
-        response = CACHE_HIT;
+        response = ACCESS_TYPE::CACHE_HIT;
         cost += LOCAL_CACHE_ACCESS;
     } else { // requesting node is not sharer/owner
-        response = CACHE_MISS;
+        response = ACCESS_TYPE::CACHE_MISS;
         cost += MEMORY_ACCESS;
         if (dir.state == CACHE_STATE::MODIFIED)
         {
@@ -44,7 +44,7 @@ void DIR_MSI::invalidate(uint32_t pid, uint64_t addr)
 int32_t DIR_MSI::fetch_and_invalidate(uint32_t       pid,
                                       uint32_t       home,
                                       uint64_t       addr,
-                                      HIT_MISS_TYPES &response)
+                                      ACCESS_TYPE &response)
 {
     int32_t cost = fetch(pid, home, addr, response);
     Directory_Line &dir = get_directory_line(addr);
@@ -62,7 +62,7 @@ int32_t DIR_MSI::fetch_and_invalidate(uint32_t       pid,
 int32_t DIR_MSI::push_and_invalidate(uint32_t       pid,
                                      uint32_t       home,
                                      uint64_t       addr,
-                                     HIT_MISS_TYPES &response,
+                                     ACCESS_TYPE &response,
                                      Controller     *controller)
 {
     int32_t cost = get_directory_cost(pid, home);
@@ -83,7 +83,7 @@ int32_t DIR_MSI::push_and_invalidate(uint32_t       pid,
                 }
             }
         }
-        response = CACHE_HIT;
+        response = ACCESS_TYPE::CACHE_HIT;
         cost += LOCAL_CACHE_ACCESS;
         dir.state = CACHE_STATE::MODIFIED;
     } else {
@@ -135,7 +135,7 @@ int32_t DIR_MSI::write_miss(uint32_t  pid,
 void DIR_MSI::process_read(uint32_t pid, uint64_t addr)
 {
     int32_t cost = 0;
-    HIT_MISS_TYPES response = CACHE_MISS;
+    ACCESS_TYPE response = ACCESS_TYPE::CACHE_MISS;
 
     uint32_t home = get_home_node(addr);
     auto &dir_line = get_directory_line(addr);
@@ -156,20 +156,12 @@ void DIR_MSI::process_read(uint32_t pid, uint64_t addr)
             break;
     }
 
-    if (response == CACHE_MISS) {
+    if (response == ACCESS_TYPE::CACHE_MISS) {
         // update read counts
         dir_line.increase_read_count(pid);
     }
 
-    profiles[pid]._access[0][response]++;
-    profiles[pid]._cycle[0][response] += cost;
-    profiles[pid]._cost += cost;
-    if (response == CACHE_MISS) {
-        ++line_stat[addr].load.miss;
-    } else {
-        ++line_stat[addr].load.hit;
-    }
-    ++line_stat[addr].count;
+    profiles->profile_cache_load(response, pid, addr, cost);
 };
 
 // processor write handler
@@ -178,7 +170,7 @@ void DIR_MSI::process_write(uint32_t   pid,
                             Controller *controller)
 {
     int32_t cost = 0;
-    HIT_MISS_TYPES response = CACHE_MISS;
+    ACCESS_TYPE response = ACCESS_TYPE::CACHE_MISS;
 
     uint32_t home = get_home_node(addr);
     auto &dir_line = get_directory_line(addr);
@@ -188,7 +180,7 @@ void DIR_MSI::process_write(uint32_t   pid,
     {
         case CACHE_STATE::MODIFIED:
         case CACHE_STATE::SHARED:
-            response = CACHE_HIT;
+            response = ACCESS_TYPE::CACHE_HIT;
             if (detector) {
                 cost = push_and_invalidate(pid, home,  addr, response, controller);
             } else {
@@ -205,13 +197,5 @@ void DIR_MSI::process_write(uint32_t   pid,
             break;
     }
 
-    profiles[pid]._access[1][response]++;
-    profiles[pid]._cycle[1][response] += cost;
-    profiles[pid]._cost += cost;
-    if (response == CACHE_MISS) {
-        ++line_stat[addr].store.miss;
-    } else {
-        ++line_stat[addr].store.hit;
-    }
-    ++line_stat[addr].count;
+    profiles->profile_cache_store(response, pid, addr, cost);
 }

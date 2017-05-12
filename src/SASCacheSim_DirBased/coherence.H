@@ -121,16 +121,21 @@ class DIR_MSI
 public:
     DIR_MSI(uint32_t num_processors): _num_processors(num_processors)
     {
-        profiles = std::vector<Profile>(num_processors, Profile());
-        detector = true;
+        profiles = new Profile(num_processors);
+        detector = false;
+    }
+
+    ~DIR_MSI()
+    {
+        delete profiles;
     }
 
     void process_read(uint32_t pid, uint64_t addr);
     void process_write(uint32_t pid, uint64_t addr, Controller *controller);
 
-    int32_t fetch(uint32_t pid, uint32_t home, uint64_t addr, HIT_MISS_TYPES &response);
-    int32_t fetch_and_invalidate(uint32_t pid, uint32_t home, uint64_t addr, HIT_MISS_TYPES &response);
-    int32_t push_and_invalidate(uint32_t pid, uint32_t home, uint64_t addr, HIT_MISS_TYPES &response, Controller *controller);
+    int32_t fetch(uint32_t pid, uint32_t home, uint64_t addr, ACCESS_TYPE &response);
+    int32_t fetch_and_invalidate(uint32_t pid, uint32_t home, uint64_t addr, ACCESS_TYPE &response);
+    int32_t push_and_invalidate(uint32_t pid, uint32_t home, uint64_t addr, ACCESS_TYPE &response, Controller *controller);
     int32_t read_miss(uint32_t pid, uint32_t home, uint64_t addr);
     int32_t write_miss(uint32_t pid, uint32_t home, uint64_t addr);
     void invalidate(uint32_t pid, uint64_t addr);
@@ -160,26 +165,8 @@ public:
         return _directory[addr];
     }
 
-    inline std::string stat_to_string()
-    {
-        std::stringstream ss;
-        ss << "Memory Stats:\n";
-        ss << "\t\tAddr\tLoad Hit\tLoad Miss\tStore Hit\tStore Miss\n";
-        for (const auto& p : line_stat)
-        {
-            if (p.second.count <= THRESHOLD) {
-                continue;
-            }
-            ss << std::hex << p.first << std::dec << "\t"
-               << p.second.load.hit << "\t" << p.second.load.miss << "\t"
-               << p.second.store.hit << "\t"<< p.second.store.miss << "\n";
-        }
-        return ss.str();
-    }
-
 public:
-    std::vector<Profile> profiles;
-    std::unordered_map<uint64_t, Access_Stat> line_stat;
+    Profile *profiles;
     std::unordered_map<uint64_t, Directory_Line>  _directory; //NOTE: addr -> dir_line
     uint32_t  _num_processors;
     bool detector;

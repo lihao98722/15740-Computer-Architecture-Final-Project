@@ -4,204 +4,169 @@
 #include <sstream>
 #include <iomanip>
 #include <string>
+#include <unordered_map>
 
-typedef enum
+typedef enum class
 {
-    LOAD = 0,
-    STORE,
-    ACCESS_TYPE_NUM
+    CACHE_HIT,
+    CACHE_MISS
 }ACCESS_TYPE;
-
-typedef enum
-{
-    CACHE_MISS = 0,
-    CACHE_HIT
-}HIT_MISS_TYPES;
 
 const uint64_t THRESHOLD = 100;
 
 class Stat
 {
 public:
-    Stat(): hit(0), miss(0), cycle(0) {}
-    uint64_t hit = 0;
-    uint64_t miss = 0;
-    uint64_t cycle = 0;
-};
+    Stat(): hits(0), misses(0), hit_cycles(0), miss_cycles(0) {}
 
-class Access_Stat
-{
-public:
-    Stat load;
-    Stat store;
-    uint64_t count = 0;
-};
-
-class Profile
-{
-public:
-    Profile()
-    {
-        for (UINT32 accessType = 0; accessType < ACCESS_TYPE_NUM; ++accessType)
-        {
-            _access[accessType][CACHE_HIT] = 0;
-            _access[accessType][CACHE_MISS] = 0;
-
-            _cycle[accessType][CACHE_HIT] = 0;
-            _cycle[accessType][CACHE_MISS] = 0;
-        }
-
-        _cost = 0;
-    }
-
-    /* ===================================================================== */
-    UINT64 SumAccess(bool hit) const
-    {
-        UINT64 sum = 0;
-
-        for (UINT32 accessType = 0; accessType < ACCESS_TYPE_NUM; accessType++)
-        {
-            sum += _access[accessType][hit];
-        }
-        return sum;
-    }
-
-    /* ===================================================================== */
-    UINT64 SumCycle(HIT_MISS_TYPES type) const
-    {
-        UINT64 sum = 0;
-
-        for (UINT32 accessType = 0; accessType < ACCESS_TYPE_NUM; accessType++)
-        {
-            sum += _cycle[accessType][type];
-        }
-        return sum;
-    }
-
-    /* ===================================================================== */
-    inline UINT64 HitCycles(ACCESS_TYPE accessType) const
-    {
-        return _cycle[accessType][CACHE_HIT];
-    }
-
-    /* ===================================================================== */
-    inline UINT64 MissCycles(ACCESS_TYPE accessType) const
-    {
-        return _cycle[accessType][CACHE_MISS];
-    }
-
-    /* ===================================================================== */
-    inline UINT64 TotalCycles(ACCESS_TYPE accessType) const
-    {
-        return HitCycles(accessType) + MissCycles(accessType);
-    }
-
-    /* ===================================================================== */
-    inline UINT64 TotalHitCycles() const
-    {
-        return SumCycle(CACHE_HIT);
-    }
-
-    /* ===================================================================== */
-    inline UINT64 TotalMissCycles() const
-    {
-        return SumCycle(CACHE_MISS);
-    }
-
-    /* ===================================================================== */
-    inline UINT64 Hits(ACCESS_TYPE accessType) const
-    {
-        return _access[accessType][CACHE_HIT];
-    }
-
-    /* ===================================================================== */
-    inline UINT64 Misses(ACCESS_TYPE accessType) const
-    {
-        return _access[accessType][CACHE_MISS];
-    }
-
-    /* ===================================================================== */
-    inline UINT64 Accesses(ACCESS_TYPE accessType) const
-    {
-        return Hits(accessType) + Misses(accessType);
-    }
-
-    /* ===================================================================== */
-    inline UINT64 Hits() const
-    {
-        return SumAccess(true);
-    }
-
-    /* ===================================================================== */
-    inline UINT64 Misses() const
-    {
-        return SumAccess(false);
-    }
-
-    /* ===================================================================== */
-    inline UINT64 Accesses() const
-    {
-        return Hits() + Misses();
-    }
-
-    /* ===================================================================== */
-    std::string stats_to_string(std::string prefix) const
+    inline std::string stat_to_string(const std::string &prefix, const std::string &type)
     {
         std::stringstream out;
-        out << prefix << std::setw(25) << std::left << " "
-                      << std::setw(15) << std::left << "Count"
-                      << std::setw(15) << std::left << "%"
-                      << std::setw(15) << std::left << "Cycles"
-                      << std::setw(10) << std::left << "%" << '\n';
+        uint64_t total_accesses = hits + misses;
+        uint64_t total_cycles = hit_cycles + miss_cycles;
 
-        for (UINT32 i = 0; i < ACCESS_TYPE_NUM; i++)
-        {
-            const ACCESS_TYPE accessType = ACCESS_TYPE(i);
+        out << prefix << std::setw(25) << std::left << (type + "-Hits")
+                      << std::setw(15) << std::left << hits
+                      << std::setw(15) << std::left << (100.0 * hits / total_accesses)
+                      << std::setw(15) << std::left << hit_cycles
+                      << std::setw(10) << std::left << (100.0 * hit_cycles / total_cycles)  << "\n";
 
-            std::string type(accessType == LOAD ? "Load" : "Store");
+        out << prefix << std::setw(25) << std::left << (type + "-Misses:")
+                      << std::setw(15) << std::left << misses
+                      << std::setw(15) << std::left << (100.0 * misses / total_accesses)
+                      << std::setw(15) << std::left << miss_cycles
+                      << std::setw(10) << std::left << (100.0 * miss_cycles / total_cycles) << "\n";
 
-            out << prefix << std::setw(25) << std::left << (type + "-Hits")
-                          << std::setw(15) << std::left << Hits(accessType)
-                          << std::setw(15) << std::left << (100.0 * Hits(accessType) / Accesses(accessType))
-                          << std::setw(15) << std::left << HitCycles(accessType)
-                          << std::setw(10) << std::left <<  (100.0 * HitCycles(accessType) / TotalCycles(accessType))  << "\n";
-
-            out << prefix << std::setw(25) << std::left << (type + "-Misses:")
-                          << std::setw(15) << std::left << Misses(accessType)
-                          << std::setw(15) << std::left << (100.0 * Misses(accessType) / Accesses(accessType))
-                          << std::setw(15) << std::left << MissCycles(accessType)
-                          << std::setw(10) << std::left << (100.0 * MissCycles(accessType) / TotalCycles(accessType)) << "\n";
-
-            out << prefix << std::setw(25) << std::left << (type + "-Total Accesses:")
-                          << std::setw(15) << std::left << Accesses(accessType)
-                          << std::setw(15) << std::left << 100.0
-                          << std::setw(15) << std::left << TotalCycles(accessType)
-                          << std::setw(10) << std::left << 100.0 << "\n\n";
-        }
-
-        out << prefix << std::setw(25) << std::left << "Total-Hits:"
-                      << std::setw(15) << std::left << Hits()
-                      << std::setw(15) << std::left << (100.0 * Hits() / Accesses())
-                      << std::setw(15) << std::left << TotalHitCycles()
-                      << std::setw(10) << std::left << (100.0 * TotalHitCycles() / _cost) << "\n";
-
-        out << prefix << std::setw(25) << std::left << "Total-Misses:"
-                      << std::setw(15) << std::left << Misses()
-                      << std::setw(15) << std::left << (100.0 * Misses() / Accesses())
-                      << std::setw(15) << std::left << TotalMissCycles()
-                      << std::setw(10) << std::left << (100.0 * TotalMissCycles() / _cost) << "\n\n";
-
-        out << prefix << std::setw(25) << std::left << "Estimated Cost:"
-                      << std::setw(15) << std::left << Accesses()
+        out << prefix << std::setw(25) << std::left << (type + "-Total Accesses:")
+                      << std::setw(15) << std::left << total_accesses
                       << std::setw(15) << std::left << 100.0
-                      << std::setw(15) << std::left << _cost
+                      << std::setw(15) << std::left << total_cycles
                       << std::setw(10) << std::left << 100.0 << "\n\n";
 
         return out.str();
     }
 
 public:
-    UINT64  _access[ACCESS_TYPE_NUM][2];
-    UINT64  _cycle[ACCESS_TYPE_NUM][2];
-    UINT64  _cost;
+    uint64_t hits = 0;
+    uint64_t misses = 0;
+    uint64_t hit_cycles = 0;
+    uint64_t miss_cycles = 0;
+};
+
+class Access_Stat
+{
+public:
+    Access_Stat() : count(0) {}
+
+    inline std::string stat_to_string(const std::string &prefix)
+    {
+        std::stringstream out;
+        uint64_t total_hits = load.hits + store.hits;
+        uint64_t total_misses = load.misses + store.misses;
+        uint64_t total_accesses = total_hits + total_misses;
+
+        uint64_t total_hit_cycles = load.hit_cycles + store.hit_cycles;
+        uint64_t total_miss_cycles = load.miss_cycles + store.miss_cycles;
+        uint64_t total_cycles = total_hit_cycles + total_miss_cycles;
+
+
+        out << load.stat_to_string(prefix, "Load") << store.stat_to_string(prefix, "Store");
+
+        out << prefix << std::setw(25) << std::left << "Total-Hits:"
+                      << std::setw(15) << std::left << total_hits
+                      << std::setw(15) << std::left << (100.0 * total_hits / total_accesses)
+                      << std::setw(15) << std::left << total_hit_cycles
+                      << std::setw(10) << std::left << (100.0 * total_hit_cycles / total_cycles) << "\n";
+
+        out << prefix << std::setw(25) << std::left << "Total-Misses:"
+                      << std::setw(15) << std::left << total_misses
+                      << std::setw(15) << std::left << (100.0 * total_misses / total_accesses)
+                      << std::setw(15) << std::left << total_miss_cycles
+                      << std::setw(10) << std::left << (100.0 * total_miss_cycles / total_cycles) << "\n\n";
+
+        out << prefix << std::setw(25) << std::left << "Estimated Cost:"
+                      << std::setw(15) << std::left << total_accesses
+                      << std::setw(15) << std::left << 100.0
+                      << std::setw(15) << std::left << total_cycles
+                      << std::setw(10) << std::left << 100.0 << "\n\n";
+
+        return out.str();
+    }
+
+public:
+    Stat load;
+    Stat store;
+    uint64_t count;
+};
+
+class Profile
+{
+public:
+    Profile(uint32_t num_processors) : _num_processors(num_processors)
+    {
+        _profiles = std::vector<Access_Stat>(num_processors, Access_Stat());
+    }
+
+    inline std::string line_stat_to_string()
+    {
+        std::stringstream out;
+        out << "Memory Stats:\n";
+        out << "\t\tAddr\tLoad Hit\tLoad Miss\tStore Hit\tStore Miss\n";
+        for (const auto& p : _line_stat)
+        {
+            if (p.second.count <= THRESHOLD) {
+                continue;
+            }
+            out << std::hex << p.first << std::dec << "\t\t"
+               << p.second.load.hits << "\t" << p.second.load.misses << "\t"
+               << p.second.store.hits << "\t"<< p.second.store.misses << "\n";
+        }
+        return out.str();
+    }
+
+    inline std::string stats_to_string()
+    {
+        std::stringstream out;
+        // skip main process, starting from thread 1 since thread0 is the main application
+        for (uint32_t pid = 0; pid < _num_processors; ++pid)
+        {
+            out << "+ Processor: " << pid << " L1 Data Cache" << std::endl
+                << _profiles[pid].stat_to_string("+ ") << std::endl;
+        }
+        out << line_stat_to_string() << std::endl;
+        return out.str();
+    }
+
+    inline void profile_cache_load(ACCESS_TYPE &type, uint32_t pid, uint64_t addr, int32_t cost)
+    {
+        if (type == ACCESS_TYPE::CACHE_HIT) {
+            ++_line_stat[addr].load.hits;
+            ++_profiles[pid].load.hits;
+            _profiles[pid].load.hit_cycles += cost;
+        } else {
+            ++_line_stat[addr].load.misses;
+            ++_profiles[pid].load.misses;
+            _profiles[pid].load.miss_cycles += cost;
+        }
+        ++_line_stat[addr].count;
+    }
+
+    inline void profile_cache_store(ACCESS_TYPE &type, uint32_t pid, uint64_t addr, int32_t cost)
+    {
+        if (type == ACCESS_TYPE::CACHE_HIT) {
+            ++_line_stat[addr].store.hits;
+            ++_profiles[pid].store.hits;
+            _profiles[pid].store.hit_cycles += cost;
+        } else {
+            ++_line_stat[addr].store.misses;
+            ++_profiles[pid].store.misses;
+            _profiles[pid].store.miss_cycles += cost;
+        }
+        ++_line_stat[addr].count;
+    }
+
+private:
+    std::vector<Access_Stat> _profiles;
+    std::unordered_map<uint64_t, Access_Stat> _line_stat;
+    uint32_t _num_processors;
 };
