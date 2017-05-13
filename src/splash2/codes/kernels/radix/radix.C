@@ -40,7 +40,7 @@
 #include <math.h>
 #include <unistd.h>
 
-#define DEFAULT_P                    1
+#define DEFAULT_P                    4
 #define DEFAULT_N               262144
 #define DEFAULT_R                 1024 
 #define DEFAULT_M               524288

@@ -38,8 +38,22 @@ uint64_t DIR_MSI::fetch(uint32_t      pid,
 void DIR_MSI::invalidate(uint32_t pid, uint64_t addr)
 {
     Directory_Line &dir = get_directory_line(addr);
+    bool claimed = dir.is_owner(pid);
+    bool ownership = detector ? (dir.is_last_writer(pid) && claimed) : claimed;
+
+    if (ownership)
+    {
+        // dirty cache line issues write back on eviction
+        uint64_t hops = 0;
+        uint32_t home = get_home_node(addr);
+        uint64_t cost = data_write_back(pid, home, hops);
+        profiles->profile_cache_evict(pid, addr, cost, hops);
+        dir.state = detector ? CACHE_STATE::SHARED :  CACHE_STATE::INVALID;
+    }
+
     dir.clear_sharer(pid);
-    if (dir.sharer_vector == 0) { // no sharers
+    if (dir.sharer_vector == 0) // no sharers
+    {
        dir.state = CACHE_STATE::INVALID;
     }
 }
@@ -85,8 +99,20 @@ uint64_t DIR_MSI::push_and_invalidate(uint32_t     pid,
     assert(dir.state != CACHE_STATE::INVALID);
 
     // requesting node is the last writer
-    if (dir.is_last_writer(pid) && dir.is_set(pid))
+    if (dir.is_last_writer(pid))
     {
+        if (!dir.is_set(pid)) //NOTE: last writer is evicted
+        {
+            cost += MEMORY_ACCESS;
+            controller->fetch_cache_line(pid, addr, true);
+            dir.set_sharer(pid);
+            response = ACCESS_TYPE::CACHE_MISS;
+        }
+        else
+        {
+            cost += LOCAL_CACHE_ACCESS;
+            response = ACCESS_TYPE::CACHE_HIT;
+        }
         if (pin_cache)
         {
             // NOTE: pin cache line
@@ -97,46 +123,39 @@ uint64_t DIR_MSI::push_and_invalidate(uint32_t     pid,
             if (i != pid) {
                 if (dir.qualified_reader(i))
                 {
-                    dir.set_sharer(i);
                     controller->fetch_cache_line(i, addr, false);
                     cost += CACHE_TO_CACHE;
-                    // NOTE: update hops
-                    get_directory_cost(i, home, hops);
+                    if (!dir.is_set(i))
+                    {
+                        dir.set_sharer(i);
+                        // NOTE: update hops
+                        get_directory_cost(i, home, hops);
+                    }
                 }
-                else
+                else if(dir.is_set(i))
                 {
                     dir.clear_sharer(i);
                 }
             }
         }
-        // get_directory_cost(pid, home, hops);
-        response = ACCESS_TYPE::CACHE_HIT;
-        cost += LOCAL_CACHE_ACCESS;
+        // response = ACCESS_TYPE::CACHE_HIT;
         dir.state = CACHE_STATE::MODIFIED;
     }
     else
     {
-        if (!dir.is_last_writer(pid))
+        for (uint32_t i = 0; i < _num_processors; ++i)
         {
-            for (uint32_t i = 0; i < _num_processors; ++i)
+            if (i != pid && dir.qualified_reader(i))
             {
-                if (i != pid && dir.qualified_reader(i))
-                {
-                    dir.decrease_read_count(i);
-                }
+                dir.decrease_read_count(i);
             }
-            if (pin_cache)
-            {
-                // NOTE: un-pin cache line
-                controller->set_cache_lock(pid, addr, false);
-            }
-            dir.update_last_writer(pid);
         }
-        else
+        if (pin_cache)
         {
-            //NOTE: in case last writer is evicted
-            controller->fetch_cache_line(pid, addr, true);
+            // NOTE: un-pin cache line
+            controller->set_cache_lock(pid, addr, false);
         }
+        dir.update_last_writer(pid);
         cost = fetch_and_invalidate(pid, home, addr, hops, response);
     }
 

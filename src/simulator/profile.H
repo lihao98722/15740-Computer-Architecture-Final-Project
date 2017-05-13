@@ -9,7 +9,7 @@
 typedef enum class
 {
     CACHE_HIT,
-    CACHE_MISS
+    CACHE_MISS,
 }ACCESS_TYPE;
 
 const uint64_t THRESHOLD = 100;
@@ -68,11 +68,13 @@ public:
 
         uint64_t total_hit_cycles = load.hit_cycles + store.hit_cycles;
         uint64_t total_miss_cycles = load.miss_cycles + store.miss_cycles;
-        uint64_t total_cycles = total_hit_cycles + total_miss_cycles;
+        uint64_t total_cycles = total_hit_cycles + total_miss_cycles + evict.miss_cycles;
 
-        uint64_t total_hops = load.hops + store.hops;
+        uint64_t total_hops = load.hops + store.hops + evict.hops;
 
-        out << load.stat_to_string(prefix, "Load") << store.stat_to_string(prefix, "Store");
+        out << load.stat_to_string(prefix, "Load")
+            << store.stat_to_string(prefix, "Store")
+            << evict.stat_to_string(prefix, "Evict");
 
         out << prefix << std::setw(25) << std::left << "Total-Hits:"
                       << std::setw(15) << std::left << total_hits
@@ -86,6 +88,11 @@ public:
                       << std::setw(15) << std::left << total_miss_cycles
                       << std::setw(10) << std::left << (100.0 * total_miss_cycles / total_cycles) << std::endl << std::endl;
 
+        out << prefix << std::setw(25) << std::left << "Total-Evicts:"
+                      << std::setw(15) << std::left << evict.misses
+                      << std::setw(15) << std::left << evict.miss_cycles
+                      << std::setw(10) << std::left << (100.0 *  evict.miss_cycles / total_cycles) << std::endl << std::endl;
+
         out << prefix << std::setw(25) << std::left << "Estimated-Cost:"
                       << std::setw(15) << std::left << total_accesses
                       << std::setw(15) << std::left << 100.0
@@ -98,6 +105,9 @@ public:
             << prefix << std::setw(25) << std::left << ("Store-Network-Msg:")
                       << std::setw(15) << std::left << store.hops
                       << std::setw(10) << std::left << (100.0 * store.hops / total_hops) << std::endl
+            << prefix << std::setw(25) << std::left << ("Evict-Network-Msg:")
+                      << std::setw(15) << std::left << evict.hops
+                      << std::setw(10) << std::left << (100.0 * evict.hops / total_hops) << std::endl
             << prefix << std::setw(25) << std::left << ("Total-Network-Msg:")
                       << std::setw(15) << std::left << total_hops
                       << std::setw(10) << std::left << 100.0  << std::endl << std::endl;
@@ -108,6 +118,7 @@ public:
 public:
     Stat load;
     Stat store;
+    Stat evict;   // NOTE:: all stats classified as miss, miss cycle and hop.
     uint64_t count;
 };
 
@@ -157,6 +168,18 @@ public:
         _profiles[pid].store.hops += hops;
     }
 
+    inline void profile_cache_evict(uint32_t      pid,
+                                    uint64_t      addr,
+                                    uint64_t      cost,
+                                    uint64_t      hops)
+    {
+        ++_line_stat[addr].evict.misses;
+        ++_profiles[pid].evict.misses;
+        _profiles[pid].evict.miss_cycles += cost;
+        _profiles[pid].evict.hops += hops;
+    }
+
+
     inline std::string stats_to_string()
     {
         std::stringstream out;
@@ -165,6 +188,7 @@ public:
 
         uint64_t all_hit_cycles = 0;
         uint64_t all_miss_cycles = 0;
+        uint64_t all_evict_cycles = 0;
 
         uint64_t all_loads = 0;
         uint64_t all_load_hops = 0;
@@ -183,13 +207,14 @@ public:
 
             all_hit_cycles += _profiles[pid].load.hit_cycles + _profiles[pid].store.hit_cycles;
             all_miss_cycles += _profiles[pid].load.miss_cycles + _profiles[pid].store.miss_cycles;
+            all_evict_cycles += _profiles[pid].evict.miss_cycles;
 
-            all_hops += _profiles[pid].load.hops + _profiles[pid].store.hops;
+            all_hops += _profiles[pid].load.hops + _profiles[pid].store.hops + _profiles[pid].evict.hops;
 
             out << "+ Processor: " << pid << " L1 Data Cache" << std::endl
                 << _profiles[pid].stat_to_string("+ ") << std::endl;
         }
-        all_cycels += all_hit_cycles + all_miss_cycles;
+        all_cycels += all_hit_cycles + all_miss_cycles + all_evict_cycles;
 
         out << std::setw(25) << std::left << "+ All-Hits:"
             << std::setw(10) << std::right << all_hits
@@ -203,6 +228,9 @@ public:
             << std::setw(25) << std::left << "+ All-Miss-Cycles:"
             << std::setw(10) << std::right << all_miss_cycles
             << std::setw(10) << std::right << (100.0 * all_miss_cycles / all_cycels) << "%" << std::endl
+            << std::setw(25) << std::left << "+ All-Evict-Cycles:"
+            << std::setw(10) << std::right << all_evict_cycles
+            << std::setw(10) << std::right << (100.0 * all_evict_cycles / all_cycels) << "%" << std::endl
             << std::setw(25) << std::left << "+ All-Cycles:"
             << std::setw(10) << std::right << all_cycels << std::endl
             << std::setw(25) << std::left << "+ Avg-Network-Msg-Load:"

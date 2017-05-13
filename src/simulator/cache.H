@@ -13,8 +13,7 @@ const uint64_t ALL_ONES = 0xFFFFFFFFFFFFFFFF;
 enum class LOCAL_STATUS
 {
     UNCACHED,
-    VALID,
-    INVALID
+    CACHED,
 };
 
 /* ===================================================================== */
@@ -77,7 +76,7 @@ public:
             }
             _lines[index].tag = tag;
             _lines[index].addr = addr;
-            _lines[index].status = LOCAL_STATUS::VALID;
+            _lines[index].status = LOCAL_STATUS::CACHED;
         }
 
         #ifdef DEBUG
@@ -101,7 +100,7 @@ public:
 
 private:
     // evict cache line and update directory
-    inline int32_t evict(uint32_t pid, DIR_MSI* coherence)
+    inline int32_t evict(uint32_t pid, DIR_MSI  *coherence)
     {
         uint64_t _min = _lines[0].lru;
         uint64_t _evict_addr = 0;
@@ -196,7 +195,9 @@ public:
         coherence->process_read(pid, addr);
     }
 
-    inline void fetch_cache_line(uint32_t pid, uint64_t addr, bool replace)
+    inline void fetch_cache_line(uint32_t pid,
+                                 uint64_t addr,
+                                 bool     replace)
     {
         uint64_t tag = get_tag(addr);
         uint32_t index = get_set_index(addr);

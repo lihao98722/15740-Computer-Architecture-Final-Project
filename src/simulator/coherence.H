@@ -24,12 +24,6 @@ enum class CACHE_STATE
     MODIFIED
 };
 
-enum class TYPE
-{
-    LOAD,
-    STOER
-};
-
 /* ===================================================================== */
 /*  @brief Directory_Line                                                */
 /* ===================================================================== */
@@ -47,6 +41,11 @@ public:
     inline bool is_set(uint32_t pid)
     {
         return sharer_vector & (1 << pid);
+    }
+
+    inline bool is_owner(uint32_t pid)
+    {
+        return is_set(pid) && (state == CACHE_STATE::MODIFIED);
     }
 
     inline uint32_t owner(uint32_t num_processors)
