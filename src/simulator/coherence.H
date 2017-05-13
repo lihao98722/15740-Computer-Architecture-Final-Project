@@ -24,6 +24,12 @@ enum class CACHE_STATE
     MODIFIED
 };
 
+enum class TYPE
+{
+    LOAD,
+    STOER
+};
+
 /* ===================================================================== */
 /*  @brief Directory_Line                                                */
 /* ===================================================================== */
@@ -123,7 +129,7 @@ public:
     {
         profiles = new Profile(num_processors);
         detector = true;
-        pin_cache = true;
+        pin_cache = false;
     }
 
     ~DIR_MSI()

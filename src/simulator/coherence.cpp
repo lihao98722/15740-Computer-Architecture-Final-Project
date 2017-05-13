@@ -13,10 +13,13 @@ uint64_t DIR_MSI::fetch(uint32_t      pid,
     assert(dir.state != CACHE_STATE::INVALID);
 
     // fetch up-to-date data
-    if (dir.is_set(pid)) { // requesting node is sharer/owner, no state change
+    if (dir.is_set(pid))
+    { // requesting node is sharer/owner, no state change
         response = ACCESS_TYPE::CACHE_HIT;
         cost += LOCAL_CACHE_ACCESS;
-    } else { // requesting node is not sharer/owner
+    }
+    else
+    { // requesting node is not sharer/owner
         response = ACCESS_TYPE::CACHE_MISS;
         cost += MEMORY_ACCESS;
         if (dir.state == CACHE_STATE::MODIFIED)
@@ -39,9 +42,6 @@ void DIR_MSI::invalidate(uint32_t pid, uint64_t addr)
     if (dir.sharer_vector == 0) { // no sharers
        dir.state = CACHE_STATE::INVALID;
     }
-    // uint64_t hops = 0;
-    // uint32_t home = get_home_node(addr);
-    // get_directory_cost(pid, home, hops)
 }
 
 // on a processor write with SHARED/MODIFIED (without detector)
