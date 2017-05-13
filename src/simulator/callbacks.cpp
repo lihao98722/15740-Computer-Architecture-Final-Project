@@ -59,23 +59,29 @@ void process_attach()
 
 void process_detach()
 {
+    PIN_GetLock(&mapLock, lock_id++);
     std::ofstream out(KnobOutputFile.Value().c_str());
     out << controller->stats_to_string();
     delete controller;
     out.close();
+    PIN_ReleaseLock(&mapLock);
 }
 
 void thread_attach()
 {
+    PIN_GetLock(&mapLock, lock_id++);
     auto temp_tid = get_current_tid();
     auto temp_pid = get_next_pid();
     std::cout << "tid " << temp_tid << " -> " << "pid " << temp_pid << std::endl;
     t_map[temp_tid] = temp_pid;
+    PIN_ReleaseLock(&mapLock);
 }
 
 void thread_detach()
 {
+    PIN_GetLock(&mapLock, lock_id++);
     uint32_t tid = get_current_tid();
     assert(t_map.find(tid) != t_map.end());
     t_map.erase(t_map.find(tid));
+    PIN_ReleaseLock(&mapLock);
 }

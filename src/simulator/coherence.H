@@ -123,6 +123,7 @@ public:
     {
         profiles = new Profile(num_processors);
         detector = true;
+        pin_cache = true;
     }
 
     ~DIR_MSI()
@@ -152,7 +153,8 @@ public:
 
     inline uint64_t get_directory_cost(uint32_t src, uint32_t dest, uint64_t &hops)
     {
-        if (src != dest) {  // request -> reply
+        if (src != dest)  // request -> reply
+        {
             hops += 2;
         }
         return (src == dest) ? LOCAL_CACHE_ACCESS : REMOTE_CACHE_ACCESS;
@@ -173,4 +175,5 @@ public:
     std::unordered_map<uint64_t, Directory_Line>  _directory; //NOTE: addr -> dir_line
     uint32_t  _num_processors;
     bool detector;
+    bool pin_cache;
 };

@@ -23,12 +23,13 @@ enum class LOCAL_STATUS
 class Cache_Line
 {
 public:
-    Cache_Line(): lru(0), tag(ALL_ONES), addr(0), status(LOCAL_STATUS::UNCACHED){}
+    Cache_Line(): lru(0), tag(ALL_ONES), addr(0), lock(false), status(LOCAL_STATUS::UNCACHED){}
 
 public:
     uint64_t lru;
     uint64_t tag;
     uint64_t addr;
+    bool lock;    //NOTE: pin last_writer in cache to avoid eviction
     LOCAL_STATUS status;
 };
 
@@ -51,6 +52,7 @@ public:
             if (_line.tag == tag)
             {
                 if (replace) {
+                    // _line.lru += coherence->detector ? 100 : 1;
                     ++_line.lru;
                 }
                 return _line.status;
@@ -86,6 +88,17 @@ public:
         #endif
     }
 
+    inline void set_lock(uint64_t tag, bool flag)
+    {
+        for (auto & _line : _lines)
+        {
+            if (_line.tag == tag) {
+                _line.lock = flag;
+                return;
+            }
+        }
+    }
+
 private:
     // evict cache line and update directory
     inline int32_t evict(uint32_t pid, DIR_MSI* coherence)
@@ -96,7 +109,7 @@ private:
 
         for (uint32_t i = 1; i < _lines.size(); ++i)
         {
-            if (_lines[i].lru < _min)
+            if (!_lines[i].lock && _lines[i].lru < _min)
             {
                 _evict = i;
                 _evict_addr = _lines[i].addr;
@@ -190,6 +203,13 @@ public:
         cache[pid].sets[index].fetch_single_line(pid, tag, addr, coherence, replace);
     }
 
+    inline void set_cache_lock(uint32_t pid, uint64_t addr, bool flag)
+    {
+        uint64_t tag = get_tag(addr);
+        uint32_t index = get_set_index(addr);
+        cache[pid].sets[index].set_lock(tag, flag);
+    }
+
     inline std::string stats_to_string()
     {
         return coherence->profiles->stats_to_string();
@@ -205,7 +225,8 @@ private:
     // extract tag infomation out of a memory address
     inline uint64_t get_tag(uint64_t addr)
     {
-        return (addr & tag_mask) >> (offset_num_bits + set_index_num_bits);
+        // return (addr & tag_mask) >> (offset_num_bits + set_index_num_bits);
+        return addr & tag_mask;
     }
 
     // get the number of bits needed to represent 'num', NOTE: num is power of 2

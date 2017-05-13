@@ -69,7 +69,6 @@ SANITY_SUBSET := $(TEST_TOOL_ROOTS) $(TEST_ROOTS)
 ##############################################################
 
 TOOL_CXXFLAGS += -DPIN
-TOOL_CXXFLAGS += -Wno-error
 TOOL_CXXFLAGS += -Wall
 TOOL_CXXFLAGS += -std=c++11
 

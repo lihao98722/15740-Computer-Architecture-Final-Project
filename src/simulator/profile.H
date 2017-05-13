@@ -92,13 +92,13 @@ public:
                       << std::setw(15) << std::left << total_cycles
                       << std::setw(10) << std::left << 100.0 << std::endl;
 
-        out << prefix << std::setw(25) << std::left << ("Load-Hops:")
+        out << prefix << std::setw(25) << std::left << ("Load-Network-Msg:")
                       << std::setw(15) << std::left << load.hops
                       << std::setw(15) << std::left << (100.0 * load.hops / total_hops) << std::endl
-            << prefix << std::setw(25) << std::left << ("Store-Hops:")
+            << prefix << std::setw(25) << std::left << ("Store-Network-Msg:")
                       << std::setw(15) << std::left << store.hops
                       << std::setw(10) << std::left << (100.0 * store.hops / total_hops) << std::endl
-            << prefix << std::setw(25) << std::left << ("Total-Hops:")
+            << prefix << std::setw(25) << std::left << ("Total-Network-Msg:")
                       << std::setw(15) << std::left << total_hops
                       << std::setw(10) << std::left << 100.0  << std::endl << std::endl;
 
@@ -160,12 +160,56 @@ public:
     inline std::string stats_to_string()
     {
         std::stringstream out;
+        uint64_t all_hits = 0;
+        uint64_t all_misses = 0;
+
+        uint64_t all_hit_cycles = 0;
+        uint64_t all_miss_cycles = 0;
+
+        uint64_t all_loads = 0;
+        uint64_t all_load_hops = 0;
+
+        uint64_t all_hops = 0;
+        uint64_t all_cycels = 0;
+
         // NOTE: starting from thread 1 if you want to skip main process
         for (uint32_t pid = 0; pid < _num_processors; ++pid)
         {
+            all_hits += _profiles[pid].load.hits + _profiles[pid].store.hits;
+            all_misses += _profiles[pid].load.misses + _profiles[pid].store.misses;
+
+            all_loads += _profiles[pid].load.hits + _profiles[pid].load.misses;
+            all_load_hops += _profiles[pid].load.hops;
+
+            all_hit_cycles += _profiles[pid].load.hit_cycles + _profiles[pid].store.hit_cycles;
+            all_miss_cycles += _profiles[pid].load.miss_cycles + _profiles[pid].store.miss_cycles;
+
+            all_hops += _profiles[pid].load.hops + _profiles[pid].store.hops;
+
             out << "+ Processor: " << pid << " L1 Data Cache" << std::endl
                 << _profiles[pid].stat_to_string("+ ") << std::endl;
         }
+        all_cycels += all_hit_cycles + all_miss_cycles;
+
+        out << std::setw(25) << std::left << "+ All-Hits:"
+            << std::setw(10) << std::right << all_hits
+            << std::setw(10) << std::right << (100.0 * all_hits / (all_hits + all_misses)) << "%" << std::endl
+            << std::setw(25) << std::left << "+ All-Misses:"
+            << std::setw(10) << std::right << all_misses
+            << std::setw(10) << std::right << (100.0 * all_misses / (all_hits + all_misses)) << "%" << std::endl
+            << std::setw(25) << std::left << "+ All-Hit-Cycles:"
+            << std::setw(10) << std::right << all_hit_cycles
+            << std::setw(10) << std::right << (100.0 * all_hit_cycles / all_cycels) << "%" << std::endl
+            << std::setw(25) << std::left << "+ All-Miss-Cycles:"
+            << std::setw(10) << std::right << all_miss_cycles
+            << std::setw(10) << std::right << (100.0 * all_miss_cycles / all_cycels) << "%" << std::endl
+            << std::setw(25) << std::left << "+ All-Cycles:"
+            << std::setw(10) << std::right << all_cycels << std::endl
+            << std::setw(25) << std::left << "+ Avg-Network-Msg-Load:"
+            << std::setw(10) << std::right << (1.0 * all_load_hops / all_loads) << std::endl
+            << std::setw(25) << std::left << "+ All-Hops:"
+            << std::setw(10) << std::right << all_hops << std::endl << std::endl;
+
         out << line_stat_to_string() << std::endl;
         return out.str();
     }
