@@ -43,7 +43,7 @@ MAIN_ENV
 
 #define MAXRAND					32767.0
 #define DEFAULT_N				128
-#define DEFAULT_P				1
+#define DEFAULT_P				4
 #define DEFAULT_B				16
 #define min(a,b) ((a) < (b) ? (a) : (b))
 #define PAGE_SIZE				4096
@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
   }
 
 /* POSSIBLE ENHANCEMENT:  Here is where one might distribute the a
-   matrix data across physically distributed memories in a 
+   matrix data across physically distributed memories in a
    round-robin fashion as desired. */
 
   BARINIT(Global->start, P);
@@ -478,7 +478,7 @@ void lu(long n, long bs, long MyNum, struct LocalCopies *lc, long dostats)
 
   strI = n;
   for (k=0, K=0; k<n; k+=bs, K++) {
-    kl = k+bs; 
+    kl = k+bs;
     if (kl>n) {
       kl = n;
     }
@@ -489,7 +489,7 @@ void lu(long n, long bs, long MyNum, struct LocalCopies *lc, long dostats)
 
     /* factor diagonal block */
     if (BlockOwner(K, K) == MyNum) {
-      A = &(a[k+k*n]); 
+      A = &(a[k+k*n]);
       lu0(A, kl-k, strI);
     }
 
@@ -675,4 +675,3 @@ void printerr(char *s)
 {
   fprintf(stderr,"ERROR: %s\n",s);
 }
-
