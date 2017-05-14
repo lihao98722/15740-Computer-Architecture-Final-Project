@@ -95,10 +95,25 @@ As we write this report, we have accomplished both 75\% and 100\% goals. And due
 
 
 \section{Cache Simulator}
-We implement a cache simulator and coherence protocols including write-invalidate, write-update, as well as the proposed adaptive versions of directory-based MSI (modified-shared-invalid) from scratch. The number of processors, cache sizes, number of sets, associativity, and line size are configurable. And it currently only simulates L1 data cache. In addition, it offers load/store hit rate statistics of the entire program, each core, and even all memory accessed. Besides, it supports cycle-accurate statistics by the cost estimation in Table \ref{cost_estimation}.
+We implement a cache simulator and coherence protocols including write-invalidate, write-update, as well as the proposed adaptive versions of directory-based MSI (modified-shared-invalid) from scratch. The number of processors, cache sizes, number of sets, associativity, and line size are configurable. And it currently only simulates L1 data cache and assumes directory banks are sufficient to hold all line records. In addition, it offers load/store hit rate statistics of the entire program, each core, and even all memory accessed. Besides, it supports cycle-accurate statistics by the cost estimation in Table \ref{cost_estimation}.
+
+% \begin{table}[!h]
+% \renewcommand{\arraystretch}{1}
+% \caption{Cycle Cost Estimation}
+% \label{cost_estimation}
+% \centering
+% \begin{tabular}{|c|c|c|c|}
+% \hline
+% LOCAL CACHE ACCESS & REMOTE CACHE ACCESS & CACHE TO CACHE & MEMORY ACCESS\\
+% \hline
+% 3 & 7 & 4 & 100\\
+% \hline
+% \end{tabular}
+% \end{table}
+% \FloatBarrier
 
 \begin{table}[!h]
-\renewcommand{\arraystretch}{1.5}
+\renewcommand{\arraystretch}{1.3}
 \caption{Cycle Cost Estimation}
 \label{cost_estimation}
 \centering
@@ -192,7 +207,9 @@ Write-update works well on producer-consumer sharing patterns. As Figure \ref{wr
 \newpage
 
 \section{Adaptive Cache Coherence Protocol}
-In this section, we introduce an adaptive cache coherence protocol that intelligently switches between write-invalidate and write-update protocols. It can mitigate unnecessary memory accesses by speculatively pushing data to consumers once producer-consumer patterns are detected. Additional bits are needed to track access history of each cache line for pattern identification. They are associated with directory lines which are extended to the structure shown in Figure \ref{dir_line}.
+In this section, we introduce an adaptive cache coherence protocol that intelligently switches between write-invalidate and write-update protocols. It can mitigate unnecessary memory accesses by speculatively pushing data to consumers once producer-consumer patterns are detected. Producer-consumer sharing patterns are defined as such: when a thread reads a memory location more than once after a thread writes it, the reading threads are considered as consumers of the writing thread on this particular memory location.
+
+Additional bits are needed to track access history of each cache line for pattern identification. They are associated with directory lines which are extended to the structure shown in Figure \ref{dir_line}.
 
 \begin{figure}[!h]
 \centering
@@ -203,7 +220,7 @@ In this section, we introduce an adaptive cache coherence protocol that intellig
 \end{figure}
 \FloatBarrier
 
-The extra bits introduced for every cache line is
+The number of extra bits needed for every cache line is
 \begin{equation*}
 log N + 2 * N
 \end{equation*}
@@ -244,13 +261,23 @@ where $N$ is the number of processors, $last\_writer$ tracks the last one to wri
 \end{algorithmic}
 \end{algorithm}
 
-
+\newpage
 
 \section{Adaptive Protocol Evaluation}
 In this section, we evaluate the performance of the proposed adaptive protocol on both general-purpose and producer-consumer sharing applications. In the following evaluations, there are 1 producer and 2 consumers running on different cores. It is done on a Intel(R) Xeon(R) CPU E5-1660 v4 @ 3.20GHz machine with 32KB L1 data cache. And we only simulate L1 data cache.
 
 \section{Summary}
+
 \newpage
+
+\begin{figure}[!h]
+\centering
+\captionsetup{justification=centering}
+\includegraphics[width=7.35in,height=2.3in]{network_msg.png}
+\caption{Network Message}
+\label{network_msg}
+\end{figure}
+\FloatBarrier
 
 \begin{figure}[!h]
 \centering
@@ -258,6 +285,31 @@ In this section, we evaluate the performance of the proposed adaptive protocol o
 \includegraphics[width=7.35in,height=2.3in]{avg_network_msg_per_load.png}
 \caption{Average Network Message per Load}
 \label{avg_network_msg_per_load}
+\end{figure}
+
+\begin{figure}[!h]
+\centering
+\captionsetup{justification=centering}
+\includegraphics[width=7.35in,height=2.3in]{evict_cycles.png}
+\caption{Evict Cycles}
+\label{evict_cycles}
+\end{figure}
+
+\begin{figure}[!h]
+\centering
+\captionsetup{justification=centering}
+\includegraphics[width=7.35in,height=2.3in]{hit_count.png}
+\caption{Hit Count}
+\label{hit_count}
+\end{figure}
+% % \FloatBarrier
+
+\begin{figure}[!h]
+\centering
+\captionsetup{justification=centering}
+\includegraphics[width=7.35in,height=2.3in]{speedup.png}
+\caption{Speedup}
+\label{speedup}
 \end{figure}
 % % \FloatBarrier
 
