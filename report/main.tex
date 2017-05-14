@@ -34,6 +34,10 @@
 \usepackage{placeins}
 \usepackage[cmex10]{amsmath}
 \usepackage{cite}
+\usepackage{array}
+\usepackage{mdwmath}
+\usepackage{mdwtab}
+
 
 % correct bad hyphenation here
 \hyphenation{op-tical net-works semi-conduc-tor}
@@ -91,7 +95,26 @@ As we write this report, we have accomplished both 75\% and 100\% goals. And due
 
 
 \section{Cache Simulator}
-We implement a cache simulator from scratch... [TODO: introduce cache simulator]
+We implement a cache simulator and coherence protocols including write-invalidate, write-update, as well as the proposed adaptive versions of directory-based MSI (modified-shared-invalid) from scratch. The number of processors, cache sizes, number of sets, associativity, and line size are configurable. And it currently only simulates L1 data cache. In addition, it offers load/store hit rate statistics of the entire program, each core, and even all memory accessed. Besides, it supports cycle-accurate statistics by the cost estimation in Table \ref{cost_estimation}.
+
+\begin{table}[!h]
+\renewcommand{\arraystretch}{1.5}
+\caption{Cycle Cost Estimation}
+\label{cost_estimation}
+\centering
+\begin{tabular}{|c|c|}
+\hline
+LOCAL CACHE ACCESS & 3\\
+\hline
+REMOTE CACHE ACCESS & 7\\
+\hline
+CACHE TO CACHE & 4\\
+\hline
+MEMORY ACCESS & 100\\
+\hline
+\end{tabular}
+\end{table}
+\FloatBarrier
 
 \newpage
 
@@ -226,19 +249,19 @@ where $N$ is the number of processors, $last\_writer$ tracks the last one to wri
 \section{Adaptive Protocol Evaluation}
 In this section, we evaluate the performance of the proposed adaptive protocol on both general-purpose and producer-consumer sharing applications. In the following evaluations, there are 1 producer and 2 consumers running on different cores. It is done on a Intel(R) Xeon(R) CPU E5-1660 v4 @ 3.20GHz machine with 32KB L1 data cache. And we only simulate L1 data cache.
 
-
-% \begin{figure}[!h]
-% \centering
-% \captionsetup{justification=centering}
-% \includegraphics[width=7.35in,height=2.3in]{avg_network_msg_per_load.png}
-% \caption{Extended Directory Line Structure of a 4 Core Machine}
-% \label{123}
-% \end{figure}
-% % \FloatBarrier
-
+\section{Summary}
 \newpage
 
-\section{Summary}
+\begin{figure}[!h]
+\centering
+\captionsetup{justification=centering}
+\includegraphics[width=7.35in,height=2.3in]{avg_network_msg_per_load.png}
+\caption{Average Network Message per Load}
+\label{avg_network_msg_per_load}
+\end{figure}
+% % \FloatBarrier
+
+
 
 
 \section{Future Works}
