@@ -404,6 +404,10 @@ Radix & 1.504 & 1.501 & 1.523\\
 \end{table}
 \FloatBarrier
 
+\subsubsection{Write-back Delegation}
+As introduced in Section 4, we delegate the write-back responsibility to either producer or consumer depending on different situations. Consumer does not need to issue write-back on cache eviction because producer will keeping modifying shared data and forwarding to consumers. By delegating write-back responsibility to producer on eviction, we reduce network message and eviction overhead.
+
+
 
 \section{Summary}
 
