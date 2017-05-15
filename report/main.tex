@@ -230,23 +230,6 @@ where $N$ is the number of processors, $last\_writer$ tracks the last one to wri
 \subsection{Replacement Policy}
 We use LRU (Least-Recently-Used) cache replacement policy. When a processor receives forwarded data from producer, its cache replacement policy will not be updated. As a result, the speculative forwarding will not disrupt consumer's locality.
 
-One thing to note is that to maximize the performance gain of speculative forwarding, we pin the producer's shared data copy to its local cache as shown in Algorithm \ref{cache_pin}. We notice that even for a stable producer-consumer sharing pattern, if frequently-modified shared date is frequently evicted from producer's local cache, the program will not benefit from speculative forwarding because each eviction incurs cache invalidations and multiple cache misses of consumer side. By pinning shared data to producer's local cache, frequently-modified shared data takes the first priority during cache replacement, thereby avoiding costly cache evictions.
-
-\begin{algorithm}
-\caption{On Write Operations}
-\label{cache_pin}
-\begin{algorithmic}[1]
-\State When cache state is $Shared$ or $Modified$
-\State Let $writer\_id$ be the processor performing writes
-\State Let $addr$ be the address of data of a processor write
-\If{$writer\_id$ == $last\_writer$}
-    \State EnableCachePin($laster\_writer$, $addr$)
-\Else
-    \State DisableCachePin($laster\_writer$, $addr$)
-\EndIf
-\end{algorithmic}
-\end{algorithm}
-
 \subsection{Write-back Policy}
 We use write-back allocate as write-back policy. In our implementation, there are four cases where a write-back allocate will be issued:
 \begin{itemize}
@@ -332,11 +315,13 @@ Application & Problem Size\\
 \hline
 Single & read/write operations on shared data\\
 \hline
-Barnes & 16384 nodes, 123 seed\\
+Fmm & two clusters, 512 particles\\
 \hline
-Ocean & non-contiguous partitions, 258x258 grid\\
+Barnes & 163 nodes, 12 seed\\
 \hline
-LU & non-contiguous blocks ,512x512 matrix, block size 16\\
+Ocean & non-contiguous partitions, 34x34 grid\\
+\hline
+LU & non-contiguous blocks ,256x256 matrix, block size 16\\
 \hline
 Radix & 256k (262,144) keys and a radix of 1024\\
 \hline
@@ -345,6 +330,8 @@ Radix & 256k (262,144) keys and a radix of 1024\\
 \FloatBarrier
 
 \textbf{Single} is the representative application described in Section 3, in which there is a producer thread that keeps writing to a shared memory location while there are multiple consumers reading from it. It establishes strong single-producer-multiple-consumer sharing patterns. As a result, it achieves more than 20\% speedup over write-invalidate protocol with less than 5\% more network message and the cache hit rates increase by around 3\%. In addition, the extra average network message per load operation needed for the proposed adaptive protocol is neglectable which means the improvement comes with very little overhead.
+
+\textbf{Fmm} is the
 
 \textbf{Barnes} is from the SPLASH-2 benchmark suite \cite{splash}. It implements the Barnes-Hut method to simulate the interaction of a system of bodies, as known as N-body problem \cite{nbody}. It can be stated as \textit{Given the quasi-steady orbital properties (instantaneous position, velocity and time) of a group of celestial bodies, predict their interactive forces; and consequently, predict their true orbital motions for all future times. \cite{nbody_wiki}} Note that the SPLASH-2 implementation allows for multiple particles to be stored in each leaf cell of the space partition and exhibit a stable producer-consumer sharing pattern \cite{barnes}. As a result, the proposed adaptive protocol has similar performance with base protocol. But if we pin cache lines in cache, it achieves about 15\% speedup, higher cache hit rates with less than 3\% more network traffic.
 
@@ -358,7 +345,7 @@ Radix & 256k (262,144) keys and a radix of 1024\\
 \subsection{Analysis}
 
 \subsubsection{Speedup}
-As Figure \ref{speedup} indicates, the adaptive cache coherence protocol (with cache pin) improve performance by 11\% --- 240\%, depending on varying problem size and degrees of producer-consumer pattern that programs exploit. For benchmarks, the major performance benefits come from cache hits and speculative cache-to-cache update. Single-thread programs receive significant performance gain from locality. However, such benefit is traded at a big discount to multi-thread programs due to cache incoherence. Specifically, the incoherent cache copies of frequently-modified shared data become performance bottleneck, which is referred as producer-consumer pattern in our case. In Adaptive Cache Coherence Protocol, the detector identifies such pattern at very early stage and speculatively update each qualified consumer on modification, which retains locality benefit of each thread at minimal cost. Therefor, Even a relative small increase of cache hit rate can result in significant performance speedup.
+As Figure \ref{speedup} indicates, the adaptive cache coherence protocol (with cache pin) improve performance by 2\% --- 21\%, depending on varying problem size and degrees of producer-consumer pattern that programs exploit. For benchmarks, the major performance benefits come from cache hits and speculative cache-to-cache update. Single-thread programs receive significant performance gain from locality. However, such benefit is traded at a big discount to multi-thread programs due to cache incoherence. Specifically, the incoherent cache copies of frequently-modified shared data become performance bottleneck, which is referred as producer-consumer pattern in our case. In Adaptive Cache Coherence Protocol, the detector identifies such pattern at very early stage and speculatively update each qualified consumer on modification, which retains locality benefit of each thread at minimal cost. Therefor, Even a relative small increase of cache hit rate can result in significant performance speedup.
 
 \subsubsection{Network Traffic}
 To investigate the extent to which speculative forwarding impacts network message, we measure the total number of network message and the average number of network message to serve a load. As Figure \ref{network_msg} and \ref{avg_network_msg_per_load} indicate, compared to directory-based write-invalidate protocol, our proposed protocol does not incur noticeable network message overhead (-5.3\% --- 3.5\%). It speculatively forwards data to qualified consumers, and dynamically updates consumers list on response from directory. From Table \ref{table_msg}, the speculative forwarding does not increase average network message needed for a load, which implies that ACP is able to identify real readers for shared data and thereby minimize the network traffic.
@@ -386,19 +373,13 @@ To investigate the extent to which speculative forwarding impacts network messag
 \caption{Average Network Message Needed to Serve a Load}
 \label{table_msg}
 \centering
-\begin{tabular}{|c|c|c|c|}
+\begin{tabular}{|c|c|c|c|c|c|c|}
 \hline
-Benchmark & Base & ACP & ACP\&Cache Pin\\
+ & Single & Fmm & Barnes & Ocean & LU & Radix \\
 \hline
-Single & 2.215 & 2.193 & 2.195\\
+Base & 2.215 & 1.447 & 1.417 & 1.497 & 1.378 & 1.504 \\
 \hline
-Barnes & 1.479 & 1.495 & 1.495\\
-\hline
-Ocean & 1.504 & 1.500 & 1.499\\
-\hline
-LU & 1.257 & 1.291 & 1.255\\
-\hline
-Radix & 1.504 & 1.501 & 1.523\\
+ACP & 2.193 & 1.445 & 1.408 & 1.479 & 1.388 & 1.501 \\
 \hline
 \end{tabular}
 \end{table}
