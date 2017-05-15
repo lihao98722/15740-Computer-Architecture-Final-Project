@@ -277,8 +277,52 @@ Note that when producer speculatively forwards data to qualified consumers, the 
 \section{Adaptive Protocol Evaluation}
 In this section, we evaluate the performance of the proposed adaptive protocol on various applications. It is done on a Intel(R) Xeon(R) CPU E5-1660 v4 @ 3.20GHz machine with 32KB L1 data cache. And we only simulate L1 data cache.
 
+\begin{table}[!h]
+\renewcommand{\arraystretch}{2.5}
+\caption{Environment  Configuration}
+\label{envir_config}
+\centering
+\begin{tabular}{|c|c|c|c|}
+\hline
+Architecture & CPU op-mode(s) & CPU(s) & Thread(s) per core \\
+\hline
+x86\_64 & 32-bit,64-bit & 16 & 2 \\
+\hline
+CPU MHz & L1 cache & L2 cache & L3 cache \\
+\hline
+1200.000 & 32K & 256K & 20480K \\
+\hline
+\end{tabular}
+\end{table}
+\FloatBarrier
+
 \subsection{Simulation Environment}
-We implement a cache simulator and coherence protocols including write-invalidate, write-update, as well as the proposed adaptive versions of directory-based MSI (modified-shared-invalid) from scratch. The number of processors, cache sizes, number of sets, associativity, and line size are configurable. And it currently only simulates L1 data cache and assumes directory banks are sufficient to hold all line records. In addition, it offers load/store hit rate statistics of the entire program, each core, and even all memory accessed. Besides, it supports cycle-accurate statistics by the cost estimation in Table \ref{cost_estimation}.
+We implement a Pintool-based cache simulator from scratch, which consists of three parts: cache, coherence protocol and profiler.
+\subsubsection{Cache}
+We implement a configurable cache simulator with portable replacement policy module. For this project, we only simulate L1 data cache and the configuration is shown in Table \ref{l1_cache_config}. However, it is easy to extend to L2/L3 cache.
+
+\begin{table}[!h]
+\renewcommand{\arraystretch}{2.5}
+\caption{L1 Cache Configuration}
+\label{l1_cache_config}
+\centering
+\begin{tabular}{|c|c|c|c|}
+\hline
+Number of Sets & Associativity & Line Size & Interconnect \\
+\hline
+64 & 8 & 64B & Directory \\
+\hline
+\end{tabular}
+\end{table}
+\FloatBarrier
+
+\subsubsection{Coherence Protocol}
+We implement directory-based MSI (Modified-Shared-Invalid) coherence protocol and simulate write-invalida
+te, write-update, as well as the proposed adaptive protocol based on it. To simplify the implementation, we assume that: (i) ring interconnection network in CPU; (ii) all read/write operations must first request home node before looking up local cache; (iii) directory bank is large enough to hold all line records.
+
+\subsubsection{Profiler}
+Our profiler provides detailed cache statistics for multi-thread programs. It monitors load/store hit/miss rate, execution cycles, network messages for each core and the entire program. To simplify the evaluation, we assign cost estimation for each type of operation, as
+/is shown in Table \ref{cost_estimation}.
 
 \begin{table}[!h]
 \renewcommand{\arraystretch}{2.5}
@@ -287,15 +331,15 @@ We implement a cache simulator and coherence protocols including write-invalidat
 \centering
 \begin{tabular}{|c|c|}
 \hline
-Access Mode & \#Cycles\\
+Access Mode & \ Number of Cycles\\
 \hline
-local cache access & 3\\
+Local Cache Access & 3\\
 \hline
-remote cache access & 7\\
+Remote Cache Access & 7\\
 \hline
-cache-to-cache data transfer & 4\\
+Cache-to-cache Data Transfer (amortized) & 4\\
 \hline
-memory access & 100\\
+Memory Access & 100\\
 \hline
 \end{tabular}
 \end{table}
@@ -331,7 +375,7 @@ Radix & 256k (262,144) keys and a radix of 1024\\
 
 \textbf{Single} is the representative application described in Section 3, in which there is a producer thread that keeps writing to a shared memory location while there are multiple consumers reading from it. It establishes strong single-producer-multiple-consumer sharing patterns. As a result, it achieves more than 20\% speedup over write-invalidate protocol with less than 5\% more network message and the cache hit rates increase by around 3\%. In addition, the extra average network message per load operation needed for the proposed adaptive protocol is neglectable which means the improvement comes with very little overhead.
 
-\textbf{Fmm} is the
+\textbf{Fmm} is from the SPLASH-2 benchmark suite \cite{splash}. It implements
 
 \textbf{Barnes} is from the SPLASH-2 benchmark suite \cite{splash}. It implements the Barnes-Hut method to simulate the interaction of a system of bodies, as known as N-body problem \cite{nbody}. It can be stated as \textit{Given the quasi-steady orbital properties (instantaneous position, velocity and time) of a group of celestial bodies, predict their interactive forces; and consequently, predict their true orbital motions for all future times. \cite{nbody_wiki}} Note that the SPLASH-2 implementation allows for multiple particles to be stored in each leaf cell of the space partition and exhibit a stable producer-consumer sharing pattern \cite{barnes}. As a result, the proposed adaptive protocol has similar performance with base protocol. But if we pin cache lines in cache, it achieves about 15\% speedup, higher cache hit rates with less than 3\% more network traffic.
 
