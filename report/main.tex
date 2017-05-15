@@ -26,7 +26,6 @@
 \usepackage{mdwmath}
 \usepackage{mdwtab}
 
-
 % correct bad hyphenation here
 \hyphenation{op-tical net-works semi-conduc-tor}
 
@@ -59,7 +58,7 @@ Carnegie Mellon University\\
 
 
 \begin{abstract}
-Shared memory multicore systems play crucial roles in scientific and enterprise applications. They are efficient in general applications but perform poorly in applications that establish producer-consumer sharing patterns under write-invalidate cache coherence protocol due to a large amount of cache invalidation and memory reads. Write-update protocol mitigates this issue by updating all copies on write operations but introduces unnecessary traffic. In this project, we propose an adaptive cache coherence protocol that speculatively pushes data updated by producer to potential consumers when producer-consumer sharing patterns are detected to avoid unnecessary invalidation and memory accesses. We evaluate the proposed adaptive protocol on applications with varying degree of producer-consumer sharing patterns. As a result, it outperforms write-invalidate protocol on applications with stable producer-consumer sharing patterns.
+Shared memory multicore systems play crucial roles in scientific and enterprise applications. They are efficient in general applications but perform poorly in applications that establish producer-consumer sharing patterns under write-invalidate cache coherence protocol due to a large amount of cache invalidations and cache misses. Write-update protocol mitigates this issue by forwarding all updates on write operations but introduces extra network traffic overhead. In this project, we propose an adaptive cache coherence protocol that speculatively forwards data updated by producer to potential consumers when producer-consumer sharing patterns are detected to avoid unnecessary invalidations and memory accesses. We evaluate the proposed adaptive protocol on applications with varying degree of producer-consumer sharing patterns. As a result, it outperforms write-invalidate protocol by 2\% --- 21\%.
 \end{abstract}
 
 
@@ -97,7 +96,7 @@ As we write this report, we have accomplished both 75\% and 100\% goals. And due
 
 
 \section{Write-Invalidate and Write-Update Protocols Evaluation}
-In this section, we evaluate the performance, in terms of load/store hit rates, of write-invalidate and write-update protocols on a representative application that establishes producer-consumer sharing patterns. In the following evaluations, there are 1 producer and 2 consumers running on different cores. It is done on a Intel(R) Xeon(R) CPU E5-1660 v4 @ 3.20GHz machine with 32KB L1 data cache. And we only simulate L1 data cache configured as Table \ref{l1_cache_config_1}.
+In this section, we evaluate the performance, in terms of load/store hit rates, of write-invalidate and write-update protocols on a representative application that establishes producer-consumer sharing pattern. In the following evaluations, there are 1 producer and 2 consumers running on different cores. It is done on a Intel(R) Xeon(R) CPU E5-1660 v4 @ 3.20GHz machine with 32KB L1 data cache. And we only simulate L1 data cache configured as Table \ref{l1_cache_config_1}.
 
 \begin{table}[!h]
 \renewcommand{\arraystretch}{2.5}
@@ -185,7 +184,7 @@ Write-update works well on producer-consumer sharing patterns. As Figure \ref{wr
 
 
 \section{Adaptive Cache Coherence Protocol}
-In this section, we introduce an adaptive cache coherence protocol that intelligently switches between write-invalidate and write-update protocols. It can mitigate unnecessary memory accesses by speculatively pushing data to consumers once producer-consumer patterns are detected. Producer-consumer sharing patterns are defined as such: when a thread reads a memory location more than once after a thread writes it, the reading threads are considered as consumers of the writing thread on this particular memory location.
+In this section, we introduce an adaptive cache coherence protocol that intelligently switches between write-invalidate and write-update protocols. It can mitigate unnecessary memory accesses by speculatively forwarding data to consumers once producer-consumer patterns are detected. Producer-consumer sharing patterns are defined as such: when a thread reads a memory location more than once after a thread writes it, the reading thread is considered as one of the consumers of the writing thread for this particular memory location.
 
 
 \subsection{Detector}
@@ -250,8 +249,8 @@ where $N$ is the number of processors, $last\_writer$ tracks the last one to wri
 \subsection{Replacement Policy}
 We use LRU (Least-Recently-Used) cache replacement policy. When a processor receives forwarded data from producer, its cache replacement policy will not be updated. As a result, the speculative forwarding will not disrupt consumer's locality.
 
-\subsection{Write-back Policy}
-We use write-back allocate as write-back policy. In our implementation, there are four cases where a write-back allocate will be issued:
+\subsection{Write Strategy}
+We use write-back allocate as write strategy. In our implementation, there are four cases where a write-back allocate will be issued:
 \begin{itemize}
   \item In write-invalidate, when the cache line is in Modified state and receives a read request from other processors (not owner), the owner will issue a write-back allocate
   \item In write-invalidate, when the cache line is in Modified state and the owner's local cache copy is being evicted, a write-back allocate will be issued by the owner
@@ -284,7 +283,7 @@ CPU MHz & L1 cache & L2 cache & L3 cache \\
 \FloatBarrier
 
 \subsection{Simulation Environment}
-We implement a Pintool-based cache simulator from scratch, which consists of three parts: cache, coherence protocol and profiler.
+We implement a Pintool-based cache simulator from scratch, which consists of three parts: cache, coherence protocol and profiler. Our code base is https://github.com/lihao98722/15740-Computer-Architecture-Final-Project.
 \subsubsection{Cache}
 We implement a configurable cache simulator with portable replacement policy module. For this project, we only simulate L1 data cache and the configuration is shown in Table \ref{l1_cache_config}. However, it is easy to extend to L2/L3 cache.
 
@@ -304,12 +303,10 @@ Number of Sets & Associativity & Line Size & Interconnect \\
 \FloatBarrier
 
 \subsubsection{Coherence Protocol}
-We implement directory-based MSI (Modified-Shared-Invalid) coherence protocol and simulate write-invalida
-te, write-update, as well as the proposed adaptive protocol based on it. To simplify the implementation, we assume that: (i) ring interconnection network in CPU; (ii) all read/write operations must first request home node before looking up local cache; (iii) directory bank is large enough to hold all line records.
+We implement directory-based MSI (Modified-Shared-Invalid) coherence protocol and simulate write-invalidate, write-update, as well as the proposed adaptive protocol based on it. To simplify the implementation, we assume that: (i) ring interconnection network in CPU; (ii) all read/write operations must first request home node before looking up local cache; (iii) directory bank is large enough to hold all line records.
 
 \subsubsection{Profiler}
-Our profiler provides detailed cache statistics for multi-thread programs. It monitors load/store hit/miss rate, execution cycles, network messages for each core and the entire program. To simplify the evaluation, we assign cost estimation for each type of operation, as
-/is shown in Table \ref{cost_estimation}.
+Our profiler provides detailed cache statistics for multi-thread programs. It monitors load/store hit/miss rate, execution cycles, network messages for each core and the entire program. To simplify the evaluation, we assign cost estimation for each type of operation, as is shown in Table \ref{cost_estimation}.
 
 \begin{table}[!h]
 \renewcommand{\arraystretch}{2.5}
@@ -369,18 +366,20 @@ to simulate the interaction of a system of bodies, as known as N-body problem \c
 
 \textbf{Ocean} is from the SPLASH-2 benchmark suite \cite{splash}. It is the non-contiguous partitions version and aims to solve boundary-value problem by simulating large-scale ocean movements based on eddy and boundary currents \cite{ocean}. This version of Ocean partitions grids into square-like subgrids to improve the communication to computation ratio and exhibits single producer single consumer sharing patterns. As a result, the proposed adaptive protocol outperforms the base protocol. It achieves about 9\% speedup. Moreover, the network traffic and eviction cost are even lower than that in the baseline protocol.
 
-\textbf{LU} is a kernel application in SPLASH-2 benchmark suite \cite{splash}. It aims to factors a dense matrix into the product of a lower triangular and an upper triangular matrix.  The factorization uses blocking to exploit temporal locality on individual submatrix elements \cite{lu}. There is no obvious producer-consumer sharing patterns in it. And We use the non-contiguous block allocation implementation in this study. As a result, it underperforms the baseline protocol. There is no speedup but it introduces 1\% more network traffic. However, the cache eviction cost is lower than the baseline.
+\textbf{LU} is a kernel application in SPLASH-2 benchmark suite \cite{splash}. It aims to factors a dense matrix into the product of a lower triangular and an upper triangular matrix.  The factorization uses blocking to exploit temporal locality on individual submatrix elements \cite{lu}. There is no obvious producer-consumer sharing patterns in it. And We use the non-contiguous block allocation implementation in this study. As a result, it has the same performance as the baseline protocol. There is no speedup and it introduces 1\% more network traffic. However, the cache eviction cost is slightly lower than the baseline.
 
-\textbf{Radix} is a kernel application in SPLASH-2 benchmark suite \cite{splash}. It is essentially an integer radix sort program that does not establish producer-consumer sharing patterns. As a result, the proposed protocol outperforms baseline. It achieves around 16\% speedup with even less network traffic. Furthermore, the eviction cost is less than baseline by around 2\%.
+\textbf{Radix} is a kernel application in SPLASH-2 benchmark suite \cite{splash}. It is essentially an integer radix sort program that does not establish explicit producer-consumer sharing patterns. As a result, the proposed protocol outperforms baseline. It achieves around 16\% speedup with even less network traffic. Furthermore, the eviction cost is less than baseline by around 2\%.
 
 
 \subsection{Analysis}
 
 \subsubsection{Speedup}
-As Figure \ref{speedup} indicates, the adaptive cache coherence protocol (with cache pin) improve performance by 2\% --- 21\%, depending on varying problem size and degrees of producer-consumer pattern that programs exploit. For benchmarks, the major performance benefits come from cache hits and speculative cache-to-cache update. Single-thread programs receive significant performance gain from locality. However, such benefit is traded at a big discount to multi-thread programs due to cache incoherence. Specifically, the incoherent cache copies of frequently-modified shared data become performance bottleneck, which is referred as producer-consumer pattern in our case. In Adaptive Cache Coherence Protocol, the detector identifies such pattern at very early stage and speculatively update each qualified consumer on modification, which retains locality benefit of each thread at minimal cost. Therefor, Even a relative small increase of cache hit rate can result in significant performance speedup.
+As Figure \ref{speedup} indicates, the adaptive cache coherence protocol improves performance by 2\% --- 21\%, depending on varying problem size and degrees of producer-consumer pattern that programs exploit. For most benchmarks, the major performance benefits come from cache hits and speculative cache-to-cache update. Single-thread programs receive significant performance gain from locality. However, such benefit is traded at a big discount to multi-thread programs due to cache incoherence. Specifically, the incoherent cache copies of frequently-modified shared data become performance bottleneck, which is referred as producer-consumer pattern in our case. In Adaptive Cache Coherence Protocol, the detector identifies such pattern at very early stage and speculatively forwards update to each qualified consumer on write operations, which retains locality benefit of each thread at minimal cost. Therefor, Even a relative small increase of cache hit rate can result in performance speedup.
+
+It is worth noting that we only simulate 32K L1 data cache in this project, and as the application size increases there is a diminishing return on performance speedup. For example, we evaluate Barnes benchmark with varying number of particles and seeds, and the results show that the proposed protocol achieves higher speedup on smaller problem size. It is possible that the size of shared memory saturates L1 cache, and thereby cache hit improvement is limited due to inevitable cache evictions. We further note that even for a stable producer-consumer sharing pattern, if frequently-modified shared date is frequently evicted from producer's local cache, the program will not benefit from speculative forwarding because each eviction incurs cache invalidations and multiple cache misses of consumer side.
 
 \subsubsection{Network Traffic}
-To investigate the extent to which speculative forwarding impacts network message, we measure the total number of network message and the average number of network message to serve a load. As Figure \ref{network_msg} and \ref{avg_network_msg_per_load} indicate, compared to directory-based write-invalidate protocol, our proposed protocol does not incur noticeable network message overhead (-5.3\% --- 3.5\%). It speculatively forwards data to qualified consumers, and dynamically updates consumers list on response from directory. From Table \ref{table_msg}, the speculative forwarding does not increase average network message needed for a load, which implies that ACP is able to identify real readers for shared data and thereby minimize the network traffic.
+To investigate the extent to which speculative forwarding impacts network message, we measure the total number of network message and the average number of network message to serve a load. As Figure \ref{network_msg} and \ref{avg_network_msg_per_load} indicate, compared to directory-based write-invalidate protocol, our proposed protocol does not incur noticeable network message overhead (-2\% --- 2\%). It speculatively forwards data to qualified consumers, and dynamically updates consumers list on response from directory. From Table \ref{table_msg}, the speculative forwarding does not increase average network message needed for a load, which implies that the Adaptive Coherence Protocol (ACP) is able to identify real readers for shared data and thereby minimize the network traffic.
 
 \begin{figure}[!h]
 \centering
@@ -418,7 +417,7 @@ ACP & 2.193 & 1.445 & 1.408 & 1.479 & 1.388 & 1.501 \\
 \FloatBarrier
 
 \subsubsection{Write-back Delegation}
-As introduced in Section 4, we delegate the write-back responsibility to either producer or consumer depending on different situations. Consumer does not need to issue write-back on cache eviction because producer will keeping modifying shared data and forwarding to consumers. By delegating write-back responsibility to producer on eviction, we reduce network message and eviction overhead.
+As introduced in Section 4, we delegate the write-back responsibility to either producer or consumer depending on different situations. Consumer does not need to issue write-back on cache eviction because producer will keeping modifying shared data and forwarding to consumers. By delegating write-back responsibility to producer on cache eviction, we reduce network message and eviction overhead.
 
 \newpage
 
@@ -455,7 +454,7 @@ As introduced in Section 4, we delegate the write-back responsibility to either 
 \null\newpage
 
 \section{Summary}
-In this project, we implement a pintool-based cache simulator that supports multiple cache coherence protocol and offers detailed statistics of cache access behavior. In addition, under the assumption that cache-to-cache communication is physically feasible, we propose an adaptive cache coherence protocol optimized for producer-consumer sharing patterns that intelligently switch from write-invalidate to write-update protocol once stable producer-consumer sharing is detected. We evaluate the adaptive protocol on applications with varying degree of producer-consumer sharing patterns. As a consequence, the proposed adaptive protocol achieves noticeable speedup with very little overhead on applications with stable patterns.
+In this project, we implement a pintool-based cache simulator that supports multiple cache coherence protocol and offers detailed statistics of cache access behavior. In addition, under the assumption that cache-to-cache communication is physically feasible, we propose an adaptive cache coherence protocol optimized for producer-consumer sharing patterns that intelligently switch from write-invalidate to write-update protocol once stable producer-consumer sharing is detected. We evaluate the adaptive protocol on applications with varying degree of producer-consumer sharing patterns. As a result, the proposed adaptive protocol achieves noticeable speedup with very little network traffic overhead.
 
 
 \section{Future Works}
