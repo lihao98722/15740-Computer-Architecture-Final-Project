@@ -26,6 +26,9 @@
 \usepackage{mdwmath}
 \usepackage{mdwtab}
 
+\usepackage{hyperref}
+
+
 % correct bad hyphenation here
 \hyphenation{op-tical net-works semi-conduc-tor}
 
@@ -77,18 +80,18 @@ Researches have been done in this area, but they focus more on eliminating unnec
 
  Instead of mitigating remote misses, this project focuses on mitigate the slowest part --- memory accesses caused by invalidation. It assumes that communications among caches on different cores are physically feasible and contributes to the following:
 \begin{itemize}
-  \item A sophisticated detector that detects producer-consumer sharing patterns at a fine-grained level without extra hardware
-  \item An adaptive cache coherence protocol optimized for producer-consumer sharing patterns
+  \item A sophisticated detector that detects producer-consumer sharing patterns at a fine-grained level without extra hardware support
+  \item An adaptive cache coherence protocol optimized for producer-consumer sharing
 \end{itemize}
 
-The remainder of this report is organized as follows. We start in Section 2 with an overview of our goals and what we have accomplished. Section 3 describes our analysis of the performance of write-invalidate and write-update protocols on a representative producer-consumer application. In Section 4, we present our adaptive protocol, followed by a thorough evaluation on several applications in Section 5. Finally, we summarize our works and discuss future directions in Section 6 and 7.
+The remainder of this report is organized as follows. We start in Section 2 with an overview of our goals and what we have accomplished. Section 3 describes our analysis of the performance of write-invalidate and write-update protocols on a representative producer-consumer application. In Section 4, we present our adaptive protocol, followed by a thorough evaluation on applications with varying degree of producer-consumer sharing in Section 5. Finally, we summarize our works and discuss future directions in Section 6 and 7.
 
 
 \section{Goals}
 
-\textbf{[75\%]} Implement cache simulators and testing tools (stack trace, logger, etc.) to fully evaluate and analyze the performance of directory-based write-invalidate and write-update protocols on representative multi-threaded producer-consumer applications.
+\textbf{[75\%]} Implement a cache simulator and testing tools (stack trace, logger, etc.) to fully evaluate and analyze the performance of directory-based write-invalidate and write-update protocols on a representative producer-consumer application.
 
-\textbf{[100\%]} Implement proposed adaptive cache coherence protocols and producer-consumer sharing pattern detector. Evaluate and analyze the its performance on applications with varying degree of producer-consumer sharing.
+\textbf{[100\%]} Implement the proposed adaptive cache coherence protocol and producer-consumer sharing pattern detector. Evaluate and analyze the its performance on applications with varying degree of producer-consumer sharing.
 
 \textbf{[125\%]} Equip the cache simulator with functionalities that can synchronize application threads so as to observe more accurate cache access events (mitigate the effect of pintool instrumentation).
 
@@ -96,7 +99,7 @@ As we write this report, we have accomplished both 75\% and 100\% goals. And due
 
 
 \section{Write-Invalidate and Write-Update Protocols Evaluation}
-In this section, we evaluate the performance, in terms of load/store hit rates, of write-invalidate and write-update protocols on a representative application that establishes producer-consumer sharing pattern. In the following evaluations, there are 1 producer and 2 consumers running on different cores. It is done on a Intel(R) Xeon(R) CPU E5-1660 v4 @ 3.20GHz machine with 32KB L1 data cache. And we only simulate L1 data cache configured as Table \ref{l1_cache_config_1}.
+In this section, we evaluate the performance, in terms of load hit rates, of write-invalidate and write-update protocols on a application that establishes strong producer-consumer sharing pattern. In the following evaluations, there are 1 producer and 2 consumers running on different cores. It is done on a Intel(R) Xeon(R) CPU E5-1660 v4 @ 3.20GHz machine with 32KB L1 data cache. And we only simulate L1 data cache configured as Table \ref{l1_cache_config_1}.
 
 \begin{table}[!h]
 \renewcommand{\arraystretch}{2.5}
@@ -114,7 +117,7 @@ Number of Sets & Associativity & Line Size & Interconnect \\
 \FloatBarrier
 
 \subsection{Representative Application}
-In the application, there is a producer thread that keeps writing to a shared memory while there are multiple consumer threads reading for it. They use a global lock for synchronization as shown in Algorithm \ref{producer_thread} and \ref{consumer_thread}. A such self-defined application works well for evaluation purposes because it offers overall performance evaluation under different cache coherence protocols. And more importantly we can have a fine-grained investigation of shared data of interest by outputting its memory address and look that up among all access records.
+In the application, there is a producer thread that keeps writing to a shared memory while there are multiple consumer threads reading for it. A global lock is used for synchronization as shown in Algorithm \ref{producer_thread} and \ref{consumer_thread}. A such self-defined application works well for evaluation purposes because it offers overall performance evaluation under different cache coherence protocols. And more importantly we can have a fine-grained investigation of the shared data of interest by outputting its memory address and look that up among all access records.
 
 \begin{algorithm}
 \caption{Producer Thread}
@@ -164,7 +167,7 @@ Write-invalidate protocol works poorly on producer-consumer sharing patterns. As
 
 
 \subsection{Write-Update Performance}
-Write-update works well on producer-consumer sharing patterns. As Figure \ref{write_update} and \ref{write_update_1} shows, the overall performance is good and consumers have perfect load hit rates. This is because consumers now can directly get data from producer without accessing memory.
+Write-update works well on producer-consumer sharing patterns. Figure \ref{write_update} and \ref{write_update_1} show that the overall performance is good and consumers have perfect load hit rates. This is because consumers now can directly get data from producer without accessing memory.
 
 \begin{figure}[!h]
 \centering
@@ -184,7 +187,7 @@ Write-update works well on producer-consumer sharing patterns. As Figure \ref{wr
 
 
 \section{Adaptive Cache Coherence Protocol}
-In this section, we introduce an adaptive cache coherence protocol that intelligently switches between write-invalidate and write-update protocols. It can mitigate unnecessary memory accesses by speculatively forwarding data to consumers once producer-consumer patterns are detected. Producer-consumer sharing patterns are defined as such: when a thread reads a memory location more than once after a thread writes it, the reading thread is considered as one of the consumers of the writing thread for this particular memory location.
+In this section, we introduce an adaptive cache coherence protocol that intelligently switches between write-invalidate and write-update protocols. It can mitigate unnecessary memory access by speculatively forwarding data to consumers once producer-consumer sharing is detected. Producer-consumer sharing patterns are defined as such: when a thread reads a memory location more than once after a thread writes it, the reading thread is considered as one of the consumers of the writing thread for this particular memory location.
 
 
 \subsection{Detector}
@@ -204,7 +207,7 @@ The number of extra bits for each cache line is
 \begin{equation*}
 log N + 2 * N
 \end{equation*}
-where $N$ is the number of processors, $last\_writer$ tracks the last one to write this cache line, and there are 2 saturating bits for every processor to track the number of read operations on this cache line. Cache accesses will trigger updates on the extra bits as shown in Algorithm \ref{write_operations} and \ref{read_operations}. Note that the extra bits will be discarded to save space when its associated directory line is evicted. However, as mentioned in Section 1, we assume large enough directory banks for all line records and so have not simulate the eviction of directory lines.
+where $N$ is the number of processors, $last\_writer$ tracks the last one to write this cache line, and there are 2 saturating bits for every processor to track the number of read operations on this cache line. Cache access will trigger updates on the extra bits as shown in Algorithm \ref{read_operations} and \ref{write_operations}. Note that the extra bits will be discarded to save space when its associated directory line is evicted. However, as mentioned in Section 1, we assume large enough directory banks for all line records and so have not simulated the eviction of directory lines.
 
 \begin{algorithm}
 \caption{On Read Operations}
@@ -235,7 +238,6 @@ where $N$ is the number of processors, $last\_writer$ tracks the last one to wri
     \ForAll{$pid \neq writer\_id$} \Comment{exclude itself}
         \State SaturatingDecrease($pid$) \Comment{decrease by 1}
         \State InvalidateDataCopy($pid$) \Comment{write-invalidate}
-        \State ClearCount($pid$) \Comment{reset read counts}
     \EndFor
     \State UpdateLastWriter($writer\_id$)
 \EndIf
@@ -247,10 +249,11 @@ where $N$ is the number of processors, $last\_writer$ tracks the last one to wri
 
 
 \subsection{Replacement Policy}
-We use LRU (Least-Recently-Used) cache replacement policy. When a processor receives forwarded data from producer, its cache replacement policy will not be updated. As a result, the speculative forwarding will not disrupt consumer's locality.
+We use LRU (Least-Recently-Used) cache replacement policy. It stays the same even when the detector and speculatively pushing are involved.
+In other words, the speculative forwarding has no effect on consumers' data locality.
 
 \subsection{Write Strategy}
-We use write-back allocate as write strategy. In our implementation, there are four cases where a write-back allocate will be issued:
+We use write-back allocate as write strategy. In our implementation, there are four cases when a write-back allocate is issued:
 \begin{itemize}
   \item In write-invalidate, when the cache line is in Modified state and receives a read request from other processors (not owner), the owner will issue a write-back allocate
   \item In write-invalidate, when the cache line is in Modified state and the owner's local cache copy is being evicted, a write-back allocate will be issued by the owner
@@ -261,7 +264,7 @@ Note that when producer speculatively forwards data to qualified consumers, the 
 
 
 \section{Adaptive Protocol Evaluation}
-In this section, we evaluate the performance of the proposed adaptive protocol on various applications. It is done on a Intel(R) Xeon(R) CPU E5-1660 v4 @ 3.20GHz machine with 32KB L1 data cache. And we only simulate L1 data cache.
+In this section, we evaluate the performance of the proposed adaptive protocol on applications with varying degree of producer-consumer sharing. It is done on a Intel(R) Xeon(R) CPU E5-1660 v4 @ 3.20GHz machine with 32KB L1 data cache. And we only simulate L1 data cache.
 
 \begin{table}[!h]
 \renewcommand{\arraystretch}{2.5}
@@ -283,9 +286,10 @@ CPU MHz & L1 cache & L2 cache & L3 cache \\
 \FloatBarrier
 
 \subsection{Simulation Environment}
-We implement a Pintool-based cache simulator from scratch, which consists of three parts: cache, coherence protocol and profiler. Our code base is https://github.com/lihao98722/15740-Computer-Architecture-Final-Project.
+We implement a Pintool-based cache simulator from scratch. It has three parts: cache, coherence protocol and profiler. Check \href{https://github.com/lihao98722/15740-Computer-Architecture-Final-Project}{\textit{github}} for more details.
+
 \subsubsection{Cache}
-We implement a configurable cache simulator with portable replacement policy module. For this project, we only simulate L1 data cache and the configuration is shown in Table \ref{l1_cache_config}. However, it is easy to extend to L2/L3 cache.
+We implement a configurable cache simulator with portable replacement policy module. For this project, we only simulate L1 data cache and it should be easy to extend to L2/L3 cache. The configuration is shown in Table \ref{l1_cache_config}.
 
 \begin{table}[!h]
 \renewcommand{\arraystretch}{2.5}
@@ -376,7 +380,7 @@ to simulate the interaction of a system of bodies, as known as N-body problem \c
 \subsubsection{Speedup}
 As Figure \ref{speedup} indicates, the adaptive cache coherence protocol improves performance by 2\% --- 21\%, depending on varying problem size and degrees of producer-consumer pattern that programs exploit. For most benchmarks, the major performance benefits come from cache hits and speculative cache-to-cache update. Single-thread programs receive significant performance gain from locality. However, such benefit is traded at a big discount to multi-thread programs due to cache incoherence. Specifically, the incoherent cache copies of frequently-modified shared data become performance bottleneck, which is referred as producer-consumer pattern in our case. In Adaptive Cache Coherence Protocol, the detector identifies such pattern at very early stage and speculatively forwards update to each qualified consumer on write operations, which retains locality benefit of each thread at minimal cost. Therefor, Even a relative small increase of cache hit rate can result in performance speedup.
 
-It is worth noting that we only simulate 32K L1 data cache in this project, and as the application size increases there is a diminishing return on performance speedup. For example, we evaluate Barnes benchmark with varying number of particles and seeds, and the results show that the proposed protocol achieves higher speedup on smaller problem size. It is possible that the size of shared memory saturates L1 cache, and thereby cache hit improvement is limited due to inevitable cache evictions. We further note that even for a stable producer-consumer sharing pattern, if frequently-modified shared date is frequently evicted from producer's local cache, the program will not benefit from speculative forwarding because each eviction incurs cache invalidations and multiple cache misses of consumer side.
+Note that we only simulate 32K L1 data cache in this project, and as the application size increases there is a diminishing return on performance speedup. For example, we evaluate Barnes benchmark with varying number of particles and seeds, and the results show that the proposed protocol achieves higher speedup on smaller problem size. It is possible that the size of shared memory saturates L1 cache, and thereby cache hit improvement is limited due to inevitable cache evictions. We further note that even for a stable producer-consumer sharing pattern, if frequently-modified shared date is frequently evicted from producer's local cache, the program will not benefit from speculative forwarding because each eviction incurs cache invalidations and multiple cache misses of consumer side.
 
 \subsubsection{Network Traffic}
 To investigate the extent to which speculative forwarding impacts network message, we measure the total number of network message and the average number of network message to serve a load. As Figure \ref{network_msg} and \ref{avg_network_msg_per_load} indicate, compared to directory-based write-invalidate protocol, our proposed protocol does not incur noticeable network message overhead (-2\% --- 2\%). It speculatively forwards data to qualified consumers, and dynamically updates consumers list on response from directory. From Table \ref{table_msg}, the speculative forwarding does not increase average network message needed for a load, which implies that the Adaptive Coherence Protocol (ACP) is able to identify real readers for shared data and thereby minimize the network traffic.
