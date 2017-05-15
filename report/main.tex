@@ -93,7 +93,7 @@ The remainder of this report is organized as follows. We start in Section 2 with
 
 \textbf{[125\%]} Equip the cache simulator with functionalities that can synchronize application threads so as to observe more accurate cache access events (mitigate the effect of pintool instrumentation).
 
-As we write this report, we have accomplished both 75\% and 100\% goals. And due to time limits, we decide to work on a more thorough analysis of the proposed protocol on multiple benchmarks instead of the 125\% goal.
+As we write this report, we have accomplished both 75\% and 100\% goals. And due to time limits, we decide to work on a more thorough analysis of the proposed protocol on benchmarks with varying degree of producer-consumer sharing patterns instead of the 125\% goal.
 
 
 \section{Write-Invalidate and Write-Update Protocols Evaluation}
@@ -115,15 +115,16 @@ Number of Sets & Associativity & Line Size & Interconnect \\
 \FloatBarrier
 
 \subsection{Representative Application}
-In the application, there is a producer thread that keeps writing to a shared memory while there are multiple consumer threads reading for it as shown in Algorithm \ref{producer_thread} and \ref{consumer_thread}. A such self-defined application works well for evaluation purposes because it offers overall performance evaluation and more importantly a fine-grained investigation of shared memory behavior under different cache coherence protocols.
+In the application, there is a producer thread that keeps writing to a shared memory while there are multiple consumer threads reading for it. They use a global lock for synchronization as shown in Algorithm \ref{producer_thread} and \ref{consumer_thread}. A such self-defined application works well for evaluation purposes because it offers overall performance evaluation under different cache coherence protocols. And more importantly we can have a fine-grained investigation of shared data of interest by outputting its memory address and look that up among all access records.
 
 \begin{algorithm}
 \caption{Producer Thread}
 \label{producer_thread}
 \begin{algorithmic}[1]
 \State $data$ refers to a shared memory location
+\State $lock$ refers to the lock for $data$
 \While{True}
-    \State GetLock() \Comment{get global lock}
+    \State GetLock($lock$) \Comment{get global lock}
     \State Produce($data$)
 \EndWhile
 \end{algorithmic}
@@ -134,8 +135,9 @@ In the application, there is a producer thread that keeps writing to a shared me
 \label{consumer_thread}
 \begin{algorithmic}[1]
 \State $data$ refers to a shared memory location
+\State $lock$ refers to the lock for $data$
 \While{True}
-    \State GetLock() \Comment{get global lock}
+    \State GetLock($lock$) \Comment{get global lock}
     \State Consume($data$)
 \EndWhile
 \end{algorithmic}
@@ -143,7 +145,7 @@ In the application, there is a producer thread that keeps writing to a shared me
 
 
 \subsection{Write-Invalidate Performance}
-Write-invalidate protocol works poorly on producer-consumer sharing patterns. As Figure \ref{write_invalidate} indicates, the overall load hit rate is acceptable. But for the shared data alone as shown in Figure \ref{write_invalidate_1}, consumers' load hit rates are low due to a large amount of invalidation.
+Write-invalidate protocol works poorly on producer-consumer sharing patterns. As Figure \ref{write_invalidate} indicates, the overall load hit rate is acceptable. But for the shared data alone as shown in Figure \ref{write_invalidate_1}, consumers' load hit rates are relatively low. The reason is that in write-invalidate protocol, write operations will invalidate all copies of this particular cache line and thus read operations after that need to read the latest one from either the owner or memory.
 
 \begin{figure}[!h]
 \centering
@@ -203,8 +205,7 @@ The number of extra bits for each cache line is
 \begin{equation*}
 log N + 2 * N
 \end{equation*}
-where $N$ is the number of processors, $last\_writer$ tracks the last one to write this cache line, and there are 2 saturating bits for every processor to track the number of read operations on this cache line. Cache accesses will trigger updates on the extra bits as shown in Algorithm \ref{write_operations} and \ref{read_operations}. Note that the extra bits will be discarded to save space when its associated directory line is evicted.
-
+where $N$ is the number of processors, $last\_writer$ tracks the last one to write this cache line, and there are 2 saturating bits for every processor to track the number of read operations on this cache line. Cache accesses will trigger updates on the extra bits as shown in Algorithm \ref{write_operations} and \ref{read_operations}. Note that the extra bits will be discarded to save space when its associated directory line is evicted. However, as mentioned in Section 1, we assume large enough directory banks for all line records and so have not simulate the eviction of directory lines.
 
 \begin{algorithm}
 \caption{On Read Operations}
