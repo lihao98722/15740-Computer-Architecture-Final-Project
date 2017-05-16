@@ -127,7 +127,7 @@ public:
     DIR_MSI(uint32_t num_processors): _num_processors(num_processors)
     {
         profiles = new Profile(num_processors);
-        detector = true;
+        detector = false;
     }
 
     ~DIR_MSI()

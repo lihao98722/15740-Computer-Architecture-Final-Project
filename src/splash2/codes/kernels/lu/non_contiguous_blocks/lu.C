@@ -42,7 +42,7 @@
 MAIN_ENV
 
 #define MAXRAND					32767.0
-#define DEFAULT_N				128
+#define DEFAULT_N				256
 #define DEFAULT_P				4
 #define DEFAULT_B				16
 #define min(a,b) ((a) < (b) ? (a) : (b))
