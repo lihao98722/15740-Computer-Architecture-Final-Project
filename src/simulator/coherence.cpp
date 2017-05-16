@@ -113,11 +113,7 @@ uint64_t DIR_MSI::push_and_invalidate(uint32_t     pid,
             cost += LOCAL_CACHE_ACCESS;
             response = ACCESS_TYPE::CACHE_HIT;
         }
-        if (pin_cache)
-        {
-            // NOTE: pin cache line
-            controller->set_cache_lock(pid, addr, true);
-        }
+
         for (uint32_t i = 0; i < _num_processors; ++i)
         {
             if (i != pid) {
@@ -149,11 +145,6 @@ uint64_t DIR_MSI::push_and_invalidate(uint32_t     pid,
             {
                 dir.decrease_read_count(i);
             }
-        }
-        if (pin_cache)
-        {
-            // NOTE: un-pin cache line
-            controller->set_cache_lock(pid, addr, false);
         }
         dir.update_last_writer(pid);
         cost = fetch_and_invalidate(pid, home, addr, hops, response);

@@ -128,7 +128,6 @@ public:
     {
         profiles = new Profile(num_processors);
         detector = true;
-        pin_cache = false;
     }
 
     ~DIR_MSI()
@@ -180,5 +179,4 @@ public:
     std::unordered_map<uint64_t, Directory_Line>  _directory; //NOTE: addr -> dir_line
     uint32_t  _num_processors;
     bool detector;
-    bool pin_cache;
 };
